@@ -1,105 +1,117 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sumo Game Client Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #players { margin-top: 10px; }
+        #arena { width: 600px; height: 600px; border: 1px solid #000; position: relative; margin-top: 20px; }
+        .player { width: 20px; height: 20px; border-radius: 50%; position: absolute; text-align: center; line-height: 20px; color: white; }
+    </style>
+</head>
 <body>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-<h1>Sumo Arena Test Client</h1>
+<h2>Sumo Game Client Test</h2>
 
-<button onclick="sendReady()">READY</button>
-<button onclick="sendAbility('push')">Push (E)</button>
-<button onclick="sendAbility('sprint')">Sprint (Q)</button>
-<button onclick="sendAbility('slide')">Slide (Shift)</button>
-<button onclick="sendAbility('invul')">Invulnerability (R)</button>
+<button id="readyBtn">Ready</button>
+<button id="pushBtn">Push</button>
+<button id="sprintBtn">Sprint</button>
+<button id="slideBtn">Slide</button>
+<button id="invulBtn">Invul</button>
+
+<div id="countdown"></div>
+<div id="players"></div>
+<div id="arena"></div>
 
 <script>
-    const socket = io("http://localhost:3000");
+const socket = io("http://localhost:3000");
 
-    let playerId = null;
-    let roomId = null;
+let playerId;
+let roomId;
 
-    // -----------------------
-    // CONNECTION
-    // -----------------------
-    socket.on("connect", () => {
-        console.log("%cConnected!", "color: green; font-size: 16px");
+// Movement state
+const movement = { vx: 0, vy: 0 };
+
+// Listen to room join
+socket.on("joined-room", (data) => {
+    playerId = data.playerId;
+    roomId = data.roomId;
+    console.log(`Joined room ${roomId} as player ${playerId}`);
+});
+
+// Listen for room updates
+socket.on("room-updated", (data) => {
+    const playersDiv = document.getElementById("players");
+    playersDiv.innerHTML = "Players in room: " + data.players.map(p => p.id).join(", ");
+});
+
+// Countdown messages
+socket.on("countdown", (num) => {
+    document.getElementById("countdown").innerText = "Game starting in: " + num;
+});
+
+socket.on("ready-timer", (num) => {
+    document.getElementById("countdown").innerText = "Ready timer: " + num;
+});
+
+// Game start
+socket.on("game-start", (data) => {
+    console.log("Game started!", data);
+});
+
+// Ability used
+socket.on("ability-used", (data) => {
+    console.log(`${data.playerId} used ability ${data.ability}`);
+});
+
+// State updates (positions)
+socket.on("state-update", (data) => {
+    const arena = document.getElementById("arena");
+    arena.innerHTML = ""; // clear
+
+    data.players.forEach(p => {
+        const el = document.createElement("div");
+        el.className = "player";
+        el.style.left = (p.x + 300) + "px"; // offset to center arena
+        el.style.top = (p.y + 300) + "px";
+        el.style.backgroundColor = p.alive ? "green" : "red";
+        el.innerText = p.id.slice(0, 2);
+        arena.appendChild(el);
     });
+});
 
-    // -----------------------
-    // JOIN ROOM EVENT
-    // -----------------------
-    socket.on("joined-room", (data) => {
-        playerId = data.playerId;
-        roomId = data.roomId;
+// Send ready
+document.getElementById("readyBtn").addEventListener("click", () => {
+    socket.emit("player-ready");
+    console.log("Sent READY");
+});
 
-        console.log("%cJOINED ROOM:", "color: blue; font-size: 14px", data);
-    });
+// Abilities
+document.getElementById("pushBtn").addEventListener("click", () => { socket.emit("ability", "push"); });
+document.getElementById("sprintBtn").addEventListener("click", () => { socket.emit("ability", "sprint"); });
+document.getElementById("slideBtn").addEventListener("click", () => { socket.emit("ability", "slide"); });
+document.getElementById("invulBtn").addEventListener("click", () => { socket.emit("ability", "invul"); });
 
-    // -----------------------
-    // ROOM UPDATE
-    // -----------------------
-    socket.on("room-updated", (data) => {
-        console.log("%cRoom updated:", "color: orange; font-size: 14px", data);
-    });
-
-    // -----------------------
-    // GAME START EVENTS
-    // -----------------------
-    socket.on("game-starting", (data) => {
-        console.log("%cGame starting...", "color: purple", data);
-    });
-
-    socket.on("countdown", (sec) => {
-        console.log("%cCountdown: " + sec, "color: magenta");
-    });
-
-    socket.on("game-start", (state) => {
-        console.log("%cGAME START!", "color: green; font-size: 18px", state);
-    });
-
-    // -----------------------
-    // STATE UPDATE
-    // -----------------------
-    socket.on("state-update", (data) => {
-        console.log("%cSTATE:", "color: teal", data);
-    });
-
-    // -----------------------
-    // DISCONNECT
-    // -----------------------
-    socket.on("disconnect", () => {
-        console.log("%cDisconnected", "color: red");
-    });
-
-    // -----------------------
-    // SEND READY
-    // -----------------------
-    function sendReady() {
-        console.log("%cSending READY", "color: green");
-        socket.emit("player-ready");
+// Keyboard movement
+document.addEventListener("keydown", (e) => {
+    switch(e.key) {
+        case "ArrowUp": movement.vy = -1; break;
+        case "ArrowDown": movement.vy = 1; break;
+        case "ArrowLeft": movement.vx = -1; break;
+        case "ArrowRight": movement.vx = 1; break;
     }
+    socket.emit("input", movement);
+});
 
-    // -----------------------
-    // SEND MOVEMENT
-    // -----------------------
-    document.addEventListener("keydown", (e) => {
-        let vx = 0;
-        let vy = 0;
-
-        if (e.key === "w" || e.key === "ArrowUp") vy = -1;
-        if (e.key === "s" || e.key === "ArrowDown") vy = 1;
-        if (e.key === "a" || e.key === "ArrowLeft") vx = -1;
-        if (e.key === "d" || e.key === "ArrowRight") vx = 1;
-
-        socket.emit("input", { vx, vy });
-    });
-
-    // -----------------------
-    // SEND ABILITY
-    // -----------------------
-    function sendAbility(ability) {
-        console.log("%cAbility used: " + ability, "color: red");
-        socket.emit("ability", ability);
+document.addEventListener("keyup", (e) => {
+    switch(e.key) {
+        case "ArrowUp": case "ArrowDown": movement.vy = 0; break;
+        case "ArrowLeft": case "ArrowRight": movement.vx = 0; break;
     }
+    socket.emit("input", movement);
+});
 </script>
 </body>
 </html>
