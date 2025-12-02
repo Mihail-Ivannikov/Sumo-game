@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<h1>Sumo Arena Test Client</h1>
+
+<button onclick="sendReady()">READY</button>
+<button onclick="sendAbility('push')">Push (E)</button>
+<button onclick="sendAbility('sprint')">Sprint (Q)</button>
+<button onclick="sendAbility('slide')">Slide (Shift)</button>
+<button onclick="sendAbility('invul')">Invulnerability (R)</button>
+
+<script>
+    const socket = io("http://localhost:3000");
+
+    let playerId = null;
+    let roomId = null;
+
+    // -----------------------
+    // CONNECTION
+    // -----------------------
+    socket.on("connect", () => {
+        console.log("%cConnected!", "color: green; font-size: 16px");
+    });
+
+    // -----------------------
+    // JOIN ROOM EVENT
+    // -----------------------
+    socket.on("joined-room", (data) => {
+        playerId = data.playerId;
+        roomId = data.roomId;
+
+        console.log("%cJOINED ROOM:", "color: blue; font-size: 14px", data);
+    });
+
+    // -----------------------
+    // ROOM UPDATE
+    // -----------------------
+    socket.on("room-updated", (data) => {
+        console.log("%cRoom updated:", "color: orange; font-size: 14px", data);
+    });
+
+    // -----------------------
+    // GAME START EVENTS
+    // -----------------------
+    socket.on("game-starting", (data) => {
+        console.log("%cGame starting...", "color: purple", data);
+    });
+
+    socket.on("countdown", (sec) => {
+        console.log("%cCountdown: " + sec, "color: magenta");
+    });
+
+    socket.on("game-start", (state) => {
+        console.log("%cGAME START!", "color: green; font-size: 18px", state);
+    });
+
+    // -----------------------
+    // STATE UPDATE
+    // -----------------------
+    socket.on("state-update", (data) => {
+        console.log("%cSTATE:", "color: teal", data);
+    });
+
+    // -----------------------
+    // DISCONNECT
+    // -----------------------
+    socket.on("disconnect", () => {
+        console.log("%cDisconnected", "color: red");
+    });
+
+    // -----------------------
+    // SEND READY
+    // -----------------------
+    function sendReady() {
+        console.log("%cSending READY", "color: green");
+        socket.emit("player-ready");
+    }
+
+    // -----------------------
+    // SEND MOVEMENT
+    // -----------------------
+    document.addEventListener("keydown", (e) => {
+        let vx = 0;
+        let vy = 0;
+
+        if (e.key === "w" || e.key === "ArrowUp") vy = -1;
+        if (e.key === "s" || e.key === "ArrowDown") vy = 1;
+        if (e.key === "a" || e.key === "ArrowLeft") vx = -1;
+        if (e.key === "d" || e.key === "ArrowRight") vx = 1;
+
+        socket.emit("input", { vx, vy });
+    });
+
+    // -----------------------
+    // SEND ABILITY
+    // -----------------------
+    function sendAbility(ability) {
+        console.log("%cAbility used: " + ability, "color: red");
+        socket.emit("ability", ability);
+    }
+</script>
+</body>
+</html>
