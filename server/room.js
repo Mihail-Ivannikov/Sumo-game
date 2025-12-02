@@ -17,11 +17,30 @@ class Room {
 
     // Додати гравця
     addPlayer(playerId) {
-        const player = new Player(playerId);
-        this.players.push(player);
-        console.log(`[${new Date().toISOString()}] Player ${playerId} added to room ${this.id}`);
-        return player;
-    }
+    const player = new Player(playerId);
+    this.players.push(player);
+
+    console.log(`[${new Date().toISOString()}] Player ${playerId} added to room ${this.id}`);
+
+    // === NEW SPAWN LOGIC ===
+    const count = this.players.length;
+    const index = count - 1;
+
+    const spawnRadius = this.arenaRadius - 50; // 50px padding
+
+    // Assign evenly distributed angle
+    const angle = (index / count) * Math.PI * 2;
+
+    player.x = Math.cos(angle) * spawnRadius;
+    player.y = Math.sin(angle) * spawnRadius;
+
+    // Zero velocity
+    player.vx = 0;
+    player.vy = 0;
+
+    return player;
+}
+
 
     // Видалити гравця
     removePlayer(playerId) {
@@ -180,39 +199,42 @@ stopSyncLoop() {
     }
 
     handleCollisions() {
-        for (let i = 0; i < this.players.length; i++) {
-            for (let j = i + 1; j < this.players.length; j++) {
-                const p1 = this.players[i];
-                const p2 = this.players[j];
-                if (!p1.alive || !p2.alive || p1.isInvulnerable || p2.isInvulnerable) continue;
+    for (let i = 0; i < this.players.length; i++) {
+        for (let j = i + 1; j < this.players.length; j++) {
+            const p1 = this.players[i];
+            const p2 = this.players[j];
 
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                const distance = Math.sqrt(dx*dx + dy*dy);
-                const minDistance = 50;
+            if (!p1.alive || !p2.alive) continue;
 
-                if (distance < minDistance) {
-                    const forceX = (p2.vx - p1.vx) * 0.5;
-                    const forceY = (p2.vy - p1.vy) * 0.5;
-                    p1.x -= forceX; p1.y -= forceY;
-                    p2.x += forceX; p2.y += forceY;
-                }
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const minDist = 50;
 
-                if (p1.pushing && !p2.isInvulnerable) {
-                    const factor = 5;
-                    p2.vx += (dx / distance) * factor;
-                    p2.vy += (dy / distance) * factor;
-                    p1.pushing = false;
-                }
-                if (p2.pushing && !p1.isInvulnerable) {
-                    const factor = 5;
-                    p1.vx -= (dx / distance) * factor;
-                    p1.vy -= (dy / distance) * factor;
-                    p2.pushing = false;
-                }
+            if (dist < minDist) {
+                const overlap = minDist - dist;
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                // Move apart based on speed (the faster pushes the slower)
+                const p1Speed = Math.sqrt(p1.vx*p1.vx + p1.vy*p1.vy);
+                const p2Speed = Math.sqrt(p2.vx*p2.vx + p2.vy*p2.vy);
+
+                const total = p1Speed + p2Speed || 1;
+
+                const p1Push = (p2Speed / total);
+                const p2Push = (p1Speed / total);
+
+                p1.x -= nx * overlap * p1Push;
+                p1.y -= ny * overlap * p1Push;
+
+                p2.x += nx * overlap * p2Push;
+                p2.y += ny * overlap * p2Push;
             }
         }
     }
+}
+
 
     checkArenaBounds() {
         this.players.forEach(p => {
@@ -221,6 +243,7 @@ stopSyncLoop() {
             if (dist > this.arenaRadius) {
                 p.alive = false;
                 this.broadcast("player-out", p.id);
+                this.checkGameOver();
             }
         });
     }

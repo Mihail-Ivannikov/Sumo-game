@@ -41,6 +41,10 @@ class Player {
         this.isInvulnerable = false;
         this.pushing = false;
 
+        this.inputX = 0;
+        this.inputY = 0;
+
+
     }
 
     useAbility(abilityName) {
@@ -76,49 +80,35 @@ class Player {
     return true;
 }
 
-updatePosition(deltaTime = 1) {
+updatePosition(delta = 1) {
     if (!this.alive) return;
 
-    let vx = this.vx;
-    let vy = this.vy;
+    // ACCELERATION
+    const accel = 0.5;
+    const friction = 0.90;
 
-    // Normalize diagonal
-    const norm = Math.sqrt(vx*vx + vy*vy);
-    if (norm > 1) {
-        vx /= norm;
-        vy /= norm;
+    // Apply acceleration from input
+    this.vx += this.inputX * accel;
+    this.vy += this.inputY * accel;
+
+    // Apply friction
+    this.vx *= friction;
+    this.vy *= friction;
+
+    // Limit max speed
+    const maxSpeed = this.isSprinting ? 15 : 8;
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (speed > maxSpeed) {
+        this.vx = (this.vx / speed) * maxSpeed;
+        this.vy = (this.vy / speed) * maxSpeed;
     }
 
-    const maxSpeed = this.isSprinting ? 2 : 1;
-    const speed = Math.min(Math.sqrt(this.vx**2 + this.vy**2) * this.speedMultiplier, maxSpeed);
-
-    this.x += vx * speed * deltaTime;
-    this.y += vy * speed * deltaTime;
+    // Apply movement
+    this.x += this.vx;
+    this.y += this.vy;
 }
 
 
-    // Update position based on current velocity and speed multiplier
-    updatePosition(deltaTime = 1) {
-        if (!this.alive) return;
-
-        // Normalize diagonal movement
-        let norm = Math.sqrt(this.vx ** 2 + this.vy ** 2);
-        let vx = this.vx;
-        let vy = this.vy;
-        if (norm > 1) {
-            vx /= norm;
-            vy /= norm;
-        }
-
-        // Determine max speed
-        const maxSpeed = this.isSprinting ? 2 : 1;
-
-        // Apply speed multiplier
-        const speed = Math.min(Math.sqrt(this.vx ** 2 + this.vy ** 2) * this.speedMultiplier, maxSpeed);
-
-        this.x += vx * speed * deltaTime;
-        this.y += vy * speed * deltaTime;
-    }
 
     // Check if ability is ready
     canUseAbility(abilityName) {

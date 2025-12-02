@@ -94,8 +94,9 @@ io.on("connection", (socket) => {
     // ----------------------
     socket.on("input", (data) => {
         if (!player.alive) return;
-        player.vx = data.vx;
-        player.vy = data.vy;
+        player.inputX = data.vx;
+        player.inputY = data.vy;
+
 
         console.log(`[${new Date().toISOString()}] Player ${player.id} input: vx=${player.vx}, vy=${player.vy}`);
     });

@@ -12,7 +12,7 @@ export default function setupInput(socket) {
         invulnerable: false
     };
 
-    // Map keys to inputState
+    // Key mapping
     const keyMap = {
         "ArrowUp": "up",
         "ArrowDown": "down",
@@ -28,22 +28,22 @@ export default function setupInput(socket) {
         "r": "invulnerable"
     };
 
-    // Keydown
-    document.addEventListener("keydown", e => {
+    // Keydown event
+    document.addEventListener("keydown", (e) => {
         const key = keyMap[e.key];
         if (key && !inputState[key]) {
             inputState[key] = true;
-            console.log(`Key down: ${e.key} -> ${key}`);
+            console.log(`Key down: ${e.key} → ${key}`);
             sendInput();
         }
     });
 
-    // Keyup
-    document.addEventListener("keyup", e => {
+    // Keyup event
+    document.addEventListener("keyup", (e) => {
         const key = keyMap[e.key];
         if (key && inputState[key]) {
             inputState[key] = false;
-            console.log(`Key up: ${e.key} -> ${key}`);
+            console.log(`Key up: ${e.key} → ${key}`);
             sendInput();
         }
     });
@@ -53,11 +53,11 @@ export default function setupInput(socket) {
     if (readyBtn) {
         readyBtn.addEventListener("click", () => {
             socket.emit("player-ready");
-            console.log("Ready button clicked!");
+            console.log("Ready clicked");
         });
     }
 
-    // Abilities buttons
+    // Ability buttons (optional UI)
     const abilitiesMap = {
         pushBtn: "push",
         sprintBtn: "sprint",
@@ -70,14 +70,14 @@ export default function setupInput(socket) {
         if (btn) {
             btn.addEventListener("click", () => {
                 socket.emit("ability", abilitiesMap[btnId]);
-                console.log(`Ability button clicked: ${abilitiesMap[btnId]}`);
+                console.log("Ability clicked:", abilitiesMap[btnId]);
             });
         }
     });
 
-    // Send input to server
+    // === SEND INPUT TO SERVER === //
     function sendInput() {
-        // Convert booleans to vx, vy
+        // Convert boolean keys to vector
         const vx = (inputState.right ? 1 : 0) - (inputState.left ? 1 : 0);
         const vy = (inputState.down ? 1 : 0) - (inputState.up ? 1 : 0);
 
