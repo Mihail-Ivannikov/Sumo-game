@@ -98,25 +98,26 @@ class Room {
         }
     }
 
-    // Запуск гри
     startGame(io) {
-        if (this.gameStarted) return;
-        this.gameStarted = true;
-        this.io = io;
+    if (this.gameStarted) return;
+    this.gameStarted = true;
+    this.io = io;
 
-        console.log(`[${new Date().toISOString()}] Game starting in room ${this.id}`);
-        this.broadcast("game-starting", { countdown: this.startTimer });
+    console.log(`[${new Date().toISOString()}] Game starting in room ${this.id}`);
+    this.broadcast("game-starting", { countdown: this.startTimer });
 
-        let countdownInterval = setInterval(() => {
-            this.startTimer--;
-            this.broadcast("countdown", this.startTimer);
-            if (this.startTimer <= 0) {
-                clearInterval(countdownInterval);
-                this.runGameLoop(io);
-            }
-        }, 1000);
-    }
+    // Запуск циклу синхронізації
+    this.startSyncLoop();
 
+    let countdownInterval = setInterval(() => {
+        this.startTimer--;
+        this.broadcast("countdown", this.startTimer);
+        if (this.startTimer <= 0) {
+            clearInterval(countdownInterval);
+            this.runGameLoop(io);
+        }
+    }, 1000);
+}
     // Головний Game Loop (~30 FPS)
     runGameLoop(io) {
         this.broadcast("game-start", { players: this.players.map(p => p.toJSON()) });
@@ -134,6 +135,42 @@ class Room {
             });
         }, 33);
     }
+
+    // Інтервал синхронізації з клієнтами
+startSyncLoop() {
+    // Відправляємо кожні 50–70 мс
+    this.syncInterval = setInterval(() => {
+        if (!this.io) return;
+
+        const playersState = this.players.map(p => ({
+            id: p.id,
+            x: p.x,
+            y: p.y,
+            vx: p.vx,
+            vy: p.vy,
+            alive: p.alive,
+            invulnerable: p.isInvulnerable,
+            abilitiesCooldowns: { ...p.abilitiesCooldowns }
+        }));
+
+        const readyState = this.players.map(p => p.ready);
+
+        this.io.to(this.id).emit("sync", {
+            players: playersState,
+            timer: this.startTimer,
+            readyState,
+            gameStarted: this.gameStarted
+        });
+    }, 60); // 60 мс ≈ 16-17 FPS, між 50–70 мс
+}
+
+// Зупинка синхронізації
+stopSyncLoop() {
+    if (this.syncInterval) {
+        clearInterval(this.syncInterval);
+        this.syncInterval = null;
+    }
+}
 
     updatePhysics() {
         this.players.forEach(p => {
@@ -201,14 +238,19 @@ class Room {
     }
 
     checkGameOver(io) {
-        const alive = this.players.filter(p => p.alive);
-        if (alive.length <= 1 && this.gameStarted) {
-            const winner = alive[0]?.id || null;
-            this.broadcast("game-over", { winner });
-            clearInterval(this.gameLoopInterval);
-            this.gameStarted = false;
-        }
+    const alive = this.players.filter(p => p.alive);
+    if (alive.length <= 1 && this.gameStarted) {
+        const winner = alive[0]?.id || null;
+        this.broadcast("game-over", { winner });
+        clearInterval(this.gameLoopInterval);
+        this.gameStarted = false;
+
+        // Зупиняємо sync loop
+        this.stopSyncLoop();
     }
+}
+
+    
 
     broadcast(event, data) {
         if (this.io) this.io.to(this.id).emit(event, data);
