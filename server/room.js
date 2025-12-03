@@ -1,3 +1,4 @@
+// server/room.js
 const Player = require("./player");
 
 class Room {
@@ -5,98 +6,50 @@ class Room {
     this.id = id;
     this.players = [];
     this.gameStarted = false;
-    this.startTimer = 5; // countdown before main game loop
+    this.startTimer = 5; 
     this.arenaRadius = 250;
     this.gameLoopInterval = null;
 
-    // Ready logic
-    this.readyCountdown = null; // interval для готовності
-    this.readyTimer = 20; // таймер 20 секунд для частково готових
+    this.readyCountdown = null;
+    this.readyTimer = 20; 
     this.io = null;
   }
 
   addPlayer(playerId) {
     const player = new Player(playerId);
+    // Initially spawn at center (waiting area)
+    player.x = 0;
+    player.y = 0;
+    
     this.players.push(player);
-
-    console.log(
-      `[${new Date().toISOString()}] Player ${playerId} added to room ${this.id}`,
-    );
-
-    const count = this.players.length;
-    const index = count - 1;
-
-    // Safe spawn radius: arena radius minus player radius minus padding
-    const playerRadius = 25;
-    const padding = 10;
-    const spawnRadius = this.arenaRadius - playerRadius - padding;
-
-    // Assign angle evenly around a circle
-    const angle = (index / count) * Math.PI * 2;
-
-    // Convert polar coordinates to Cartesian
-    player.x = Math.cos(angle) * spawnRadius;
-    player.y = Math.sin(angle) * spawnRadius;
-
-    console.log(`PLAYER X = ${player.x} PLAYER Y = ${player.y}`);
-
-    // Zero velocity
-    player.vx = 0;
-    player.vy = 0;
-
-    console.log(
-      `Spawned player ${playerId} at x:${player.x.toFixed(1)}, y:${player.y.toFixed(1)}`,
-    );
-
+    console.log(`[${new Date().toISOString()}] Player ${playerId} added to room ${this.id}`);
     return player;
   }
 
-  // Видалити гравця
   removePlayer(playerId) {
     this.players = this.players.filter((p) => p.id !== playerId);
-    console.log(
-      `[${new Date().toISOString()}] Player ${playerId} removed from room ${this.id}`,
-    );
     if (this.readyCountdown) {
       clearInterval(this.readyCountdown);
       this.readyCountdown = null;
-      console.log(
-        `[${new Date().toISOString()}] Ready countdown reset in room ${this.id}`,
-      );
     }
   }
 
-  // Перевірка чи всі готові
   allReady() {
     return this.players.length > 0 && this.players.every((p) => p.ready);
   }
 
-  // Гравець став ready
   setPlayerReady(playerId) {
     const player = this.players.find((p) => p.id === playerId);
     if (!player) return;
     player.ready = true;
-    console.log(
-      `[${new Date().toISOString()}] Player ${playerId} is READY in room ${this.id}`,
-    );
 
     const readyPlayers = this.players.filter((p) => p.ready);
 
-    // Не починати гру, якщо готові менше 2 гравців
-    if (readyPlayers.length < 2) {
-      console.log(
-        `[${new Date().toISOString()}] Only ${readyPlayers.length} player(s) ready in room ${this.id}, waiting for more...`,
-      );
-      return;
-    }
+    if (readyPlayers.length < 2) return;
 
-    // Якщо всі готові — запуск 3…2…1
     if (this.allReady()) {
       if (this.readyCountdown) clearInterval(this.readyCountdown);
       let countdown = 3;
-      console.log(
-        `[${new Date().toISOString()}] All players ready in room ${this.id}, starting countdown 3…2…1`,
-      );
       this.broadcast("countdown", countdown);
 
       this.readyCountdown = setInterval(() => {
@@ -109,12 +62,8 @@ class Room {
         }
       }, 1000);
     } else {
-      // Часткова готовність (принаймні 2 гравці)
       if (!this.readyCountdown) {
         let timer = this.readyTimer;
-        console.log(
-          `[${new Date().toISOString()}] Partial readiness in room ${this.id}, starting 20s timer`,
-        );
         this.readyCountdown = setInterval(() => {
           timer--;
           this.broadcast("ready-timer", timer);
@@ -123,18 +72,12 @@ class Room {
           if (currentReady.length < 2) {
             clearInterval(this.readyCountdown);
             this.readyCountdown = null;
-            console.log(
-              `[${new Date().toISOString()}] Not enough players ready in room ${this.id}, timer stopped`,
-            );
             return;
           }
 
           if (timer <= 0 || this.allReady()) {
             clearInterval(this.readyCountdown);
             this.readyCountdown = null;
-            console.log(
-              `[${new Date().toISOString()}] Ready timer ended in room ${this.id}, starting game`,
-            );
             this.startGame(this.io);
           }
         }, 1000);
@@ -142,17 +85,48 @@ class Room {
     }
   }
 
+  // --- NEW FUNCTION: Distribute players evenly ---
+  spawnPlayers() {
+    const count = this.players.length;
+    const playerRadius = 25;
+    const padding = 20; // Slightly more padding to be safe
+    const spawnRadius = this.arenaRadius - playerRadius - padding;
+
+    console.log(`[Room ${this.id}] Spawning ${count} players...`);
+
+    this.players.forEach((player, index) => {
+        // 1. Reset health/status
+        player.reset(); 
+
+        // 2. Calculate Angle
+        // Formula: index * (360 degrees / count)
+        // 2 players: 0, 180 (Math.PI)
+        // 3 players: 0, 120, 240 (Mercedes sign)
+        // 4 players: 0, 90, 180, 270
+        const angle = (index * (2 * Math.PI)) / count; 
+        
+        // 3. Set Position
+        // Note: We subtract PI/2 to make the first player (index 0) appear at the TOP (12 o'clock)
+        // If you want index 0 at RIGHT (3 o'clock), remove the "- Math.PI / 2"
+        player.x = Math.cos(angle - Math.PI / 2) * spawnRadius;
+        player.y = Math.sin(angle - Math.PI / 2) * spawnRadius;
+
+        console.log(` -> Player ${player.id.slice(0,4)} at ${Math.round(player.x)}, ${Math.round(player.y)}`);
+    });
+  }
+
   startGame(io) {
     if (this.gameStarted) return;
     this.gameStarted = true;
     this.io = io;
 
-    console.log(
-      `[${new Date().toISOString()}] Game starting in room ${this.id}`,
-    );
+    // !!! CALL SPAWN LOGIC HERE !!!
+    // This ensures players are reset and positioned correctly EVERY round.
+    this.spawnPlayers();
+
+    console.log(`[${new Date().toISOString()}] Game starting in room ${this.id}`);
     this.broadcast("game-starting", { countdown: this.startTimer });
 
-    // Запуск циклу синхронізації
     this.startSyncLoop();
 
     let countdownInterval = setInterval(() => {
@@ -164,7 +138,7 @@ class Room {
       }
     }, 1000);
   }
-  // Головний Game Loop (~30 FPS)
+
   runGameLoop(io) {
     this.broadcast("game-start", {
       players: this.players.map((p) => p.toJSON()),
@@ -184,9 +158,7 @@ class Room {
     }, 33);
   }
 
-  // Інтервал синхронізації з клієнтами
   startSyncLoop() {
-    // Відправляємо кожні 50–70 мс
     this.syncInterval = setInterval(() => {
       if (!this.io) return;
 
@@ -198,6 +170,7 @@ class Room {
         vy: p.vy,
         alive: p.alive,
         invulnerable: p.isInvulnerable,
+        isSliding: p.isSliding, // Added this so client can see slide color
         abilitiesCooldowns: { ...p.abilitiesCooldowns },
       }));
 
@@ -209,10 +182,9 @@ class Room {
         readyState,
         gameStarted: this.gameStarted,
       });
-    }, 60); // 60 мс ≈ 16-17 FPS, між 50–70 мс
+    }, 60);
   }
 
-  // Зупинка синхронізації
   stopSyncLoop() {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
@@ -228,73 +200,61 @@ class Room {
   }
 
   handleCollisions() {
-  for (let i = 0; i < this.players.length; i++) {
-    const p1 = this.players[i];
-    if (!p1.alive) continue;
+    for (let i = 0; i < this.players.length; i++) {
+      const p1 = this.players[i];
+      if (!p1.alive) continue;
 
-    for (let j = i + 1; j < this.players.length; j++) {
-      const p2 = this.players[j];
-      if (!p2.alive) continue;
+      for (let j = i + 1; j < this.players.length; j++) {
+        const p2 = this.players[j];
+        if (!p2.alive) continue;
 
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1; // prevent division by zero
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1; 
 
-      // --- NORMAL COLLISION PUSH-APART ---
-      const minDist = 50;
-      if (dist < minDist) {
-        const overlap = minDist - dist;
-        const nx = dx / dist;
-        const ny = dy / dist;
+        const minDist = 50;
+        if (dist < minDist) {
+          const overlap = minDist - dist;
+          const nx = dx / dist;
+          const ny = dy / dist;
 
-        // Only move players if they are not invulnerable
-        if (!p1.isInvulnerable && !p2.isInvulnerable) {
-          const p1Speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
-          const p2Speed = Math.sqrt(p2.vx * p2.vx + p2.vy * p2.vy);
-          const total = p1Speed + p2Speed || 1;
+          if (!p1.isInvulnerable && !p2.isInvulnerable) {
+            const p1Speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
+            const p2Speed = Math.sqrt(p2.vx * p2.vx + p2.vy * p2.vy);
+            const total = p1Speed + p2Speed || 1;
 
-          const p1Push = p2Speed / total;
-          const p2Push = p1Speed / total;
+            const p1Push = p2Speed / total;
+            const p2Push = p1Speed / total;
 
-          p1.x -= nx * overlap * p1Push;
-          p1.y -= ny * overlap * p1Push;
+            p1.x -= nx * overlap * p1Push;
+            p1.y -= ny * overlap * p1Push;
 
-          p2.x += nx * overlap * p2Push;
-          p2.y += ny * overlap * p2Push;
+            p2.x += nx * overlap * p2Push;
+            p2.y += ny * overlap * p2Push;
+          }
         }
-      }
 
-      // --- PUSH ABILITY ---
-      const pushRange = 100;
-      const pushDistance = 50;
+        const pushRange = 100;
+        const pushDistance = 50;
 
-      // p1 pushes p2
-      if (p1.pushing && dist <= pushRange && !p2.isInvulnerable && !p1.isInvulnerable) {
-        const nx = dx / dist;
-        const ny = dy / dist;
+        if (p1.pushing && dist <= pushRange && !p2.isInvulnerable && !p1.isInvulnerable) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          p2.x += nx * pushDistance;
+          p2.y += ny * pushDistance;
+          p1.pushing = false; 
+        }
 
-        p2.x += nx * pushDistance;
-        p2.y += ny * pushDistance;
-
-        console.log(`[${new Date().toISOString()}] Player ${p1.id} pushed player ${p2.id} by 50px`);
-        p1.pushing = false; // reset pushing so it only applies once
-      }
-
-      // p2 pushes p1
-      if (p2.pushing && dist <= pushRange && !p1.isInvulnerable && !p2.isInvulnerable) {
-        const nx = -dx / dist;
-        const ny = -dy / dist;
-
-        p1.x += nx * pushDistance;
-        p1.y += ny * pushDistance;
-
-        console.log(`[${new Date().toISOString()}] Player ${p2.id} pushed player ${p1.id} by 50px`);
-        p2.pushing = false; // reset pushing so it only applies once
+        if (p2.pushing && dist <= pushRange && !p1.isInvulnerable && !p2.isInvulnerable) {
+          const nx = -dx / dist;
+          const ny = -dy / dist;
+          p1.x += nx * pushDistance;
+          p1.y += ny * pushDistance;
+          p2.pushing = false; 
+        }
       }
     }
   }
-}
-
 
   checkArenaBounds() {
     this.players.forEach((p) => {
@@ -325,10 +285,17 @@ class Room {
     if (alive.length <= 1 && this.gameStarted) {
       const winner = alive[0]?.id || null;
       this.broadcast("game-over", { winner });
+      
       clearInterval(this.gameLoopInterval);
       this.gameStarted = false;
+      this.startTimer = 3; // Reset timer for next round
 
-      // Зупиняємо sync loop
+      // Mark all players as NOT ready so they have to click button again
+      this.players.forEach(p => p.ready = false);
+      this.broadcast("room-updated", {
+         players: this.players.map(p => p.toJSON())
+      });
+
       this.stopSyncLoop();
     }
   }
