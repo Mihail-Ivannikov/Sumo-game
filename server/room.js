@@ -228,25 +228,27 @@ class Room {
   }
 
   handleCollisions() {
-    for (let i = 0; i < this.players.length; i++) {
-      const p1 = this.players[i];
-      if (!p1.alive) continue;
+  for (let i = 0; i < this.players.length; i++) {
+    const p1 = this.players[i];
+    if (!p1.alive) continue;
 
-      for (let j = i + 1; j < this.players.length; j++) {
-        const p2 = this.players[j];
-        if (!p2.alive) continue;
+    for (let j = i + 1; j < this.players.length; j++) {
+      const p2 = this.players[j];
+      if (!p2.alive) continue;
 
-        const dx = p2.x - p1.x;
-        const dy = p2.y - p1.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1; // prevent division by zero
 
-        // Normal collision push-apart
-        const minDist = 50;
-        if (dist < minDist) {
-          const overlap = minDist - dist;
-          const nx = dx / dist;
-          const ny = dy / dist;
+      // --- NORMAL COLLISION PUSH-APART ---
+      const minDist = 50;
+      if (dist < minDist) {
+        const overlap = minDist - dist;
+        const nx = dx / dist;
+        const ny = dy / dist;
 
+        // Only move players if they are not invulnerable
+        if (!p1.isInvulnerable && !p2.isInvulnerable) {
           const p1Speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
           const p2Speed = Math.sqrt(p2.vx * p2.vx + p2.vy * p2.vy);
           const total = p1Speed + p2Speed || 1;
@@ -260,36 +262,39 @@ class Room {
           p2.x += nx * overlap * p2Push;
           p2.y += ny * overlap * p2Push;
         }
+      }
 
-        // PUSH ability: knockback exactly 50px
-        const pushRange = 100; // only push players within 100px
-        const pushDistance = 50; // fixed 50px displacement
-        if (p1.pushing && dist <= pushRange) {
-          const nx = dx / dist;
-          const ny = dy / dist;
+      // --- PUSH ABILITY ---
+      const pushRange = 100;
+      const pushDistance = 50;
 
-          p2.x += nx * pushDistance;
-          p2.y += ny * pushDistance;
+      // p1 pushes p2
+      if (p1.pushing && dist <= pushRange && !p2.isInvulnerable && !p1.isInvulnerable) {
+        const nx = dx / dist;
+        const ny = dy / dist;
 
-          console.log(
-            `[${new Date().toISOString()}] Player ${p1.id} pushed player ${p2.id} by 50px`,
-          );
-        }
+        p2.x += nx * pushDistance;
+        p2.y += ny * pushDistance;
 
-        if (p2.pushing && dist <= pushRange) {
-          const nx = -dx / dist;
-          const ny = -dy / dist;
+        console.log(`[${new Date().toISOString()}] Player ${p1.id} pushed player ${p2.id} by 50px`);
+        p1.pushing = false; // reset pushing so it only applies once
+      }
 
-          p1.x += nx * pushDistance;
-          p1.y += ny * pushDistance;
+      // p2 pushes p1
+      if (p2.pushing && dist <= pushRange && !p1.isInvulnerable && !p2.isInvulnerable) {
+        const nx = -dx / dist;
+        const ny = -dy / dist;
 
-          console.log(
-            `[${new Date().toISOString()}] Player ${p2.id} pushed player ${p1.id} by 50px`,
-          );
-        }
+        p1.x += nx * pushDistance;
+        p1.y += ny * pushDistance;
+
+        console.log(`[${new Date().toISOString()}] Player ${p2.id} pushed player ${p1.id} by 50px`);
+        p2.pushing = false; // reset pushing so it only applies once
       }
     }
   }
+}
+
 
   checkArenaBounds() {
     this.players.forEach((p) => {
