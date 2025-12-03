@@ -6,7 +6,7 @@ class Room {
         this.players = [];
         this.gameStarted = false;
         this.startTimer = 5;       // countdown before main game loop
-        this.arenaRadius = 500;
+        this.arenaRadius = 250;
         this.gameLoopInterval = null;
 
         // Ready logic
@@ -15,31 +15,38 @@ class Room {
         this.io = null;
     }
 
-    // Додати гравця
-    addPlayer(playerId) {
+   addPlayer(playerId) {
     const player = new Player(playerId);
     this.players.push(player);
 
     console.log(`[${new Date().toISOString()}] Player ${playerId} added to room ${this.id}`);
 
-    // === NEW SPAWN LOGIC ===
     const count = this.players.length;
     const index = count - 1;
 
-    const spawnRadius = this.arenaRadius - 50; // 50px padding
+    // Safe spawn radius: arena radius minus player radius minus padding
+    const playerRadius = 25;
+    const padding = 10;
+    const spawnRadius = this.arenaRadius - playerRadius - padding;
 
-    // Assign evenly distributed angle
+    // Assign angle evenly around a circle
     const angle = (index / count) * Math.PI * 2;
 
+    // Convert polar coordinates to Cartesian
     player.x = Math.cos(angle) * spawnRadius;
     player.y = Math.sin(angle) * spawnRadius;
+
+    console.log(`PLAYER X = ${player.x} PLAYER Y = ${player.y}`)
 
     // Zero velocity
     player.vx = 0;
     player.vy = 0;
 
+    console.log(`Spawned player ${playerId} at x:${player.x.toFixed(1)}, y:${player.y.toFixed(1)}`);
+
     return player;
 }
+
 
 
     // Видалити гравця
@@ -200,26 +207,26 @@ stopSyncLoop() {
 
     handleCollisions() {
     for (let i = 0; i < this.players.length; i++) {
-        for (let j = i + 1; j < this.players.length; j++) {
-            const p1 = this.players[i];
-            const p2 = this.players[j];
+        const p1 = this.players[i];
+        if (!p1.alive) continue;
 
-            if (!p1.alive || !p2.alive) continue;
+        for (let j = i + 1; j < this.players.length; j++) {
+            const p2 = this.players[j];
+            if (!p2.alive) continue;
 
             const dx = p2.x - p1.x;
             const dy = p2.y - p1.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            const minDist = 50;
 
+            // Normal collision push-apart
+            const minDist = 50;
             if (dist < minDist) {
                 const overlap = minDist - dist;
                 const nx = dx / dist;
                 const ny = dy / dist;
 
-                // Move apart based on speed (the faster pushes the slower)
                 const p1Speed = Math.sqrt(p1.vx*p1.vx + p1.vy*p1.vy);
                 const p2Speed = Math.sqrt(p2.vx*p2.vx + p2.vy*p2.vy);
-
                 const total = p1Speed + p2Speed || 1;
 
                 const p1Push = (p2Speed / total);
@@ -231,9 +238,33 @@ stopSyncLoop() {
                 p2.x += nx * overlap * p2Push;
                 p2.y += ny * overlap * p2Push;
             }
+
+            // PUSH ability: knockback exactly 50px
+            const pushRange = 100; // only push players within 100px
+            const pushDistance = 50; // fixed 50px displacement
+            if (p1.pushing && dist <= pushRange) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                p2.x += nx * pushDistance;
+                p2.y += ny * pushDistance;
+
+                console.log(`[${new Date().toISOString()}] Player ${p1.id} pushed player ${p2.id} by 50px`);
+            }
+
+            if (p2.pushing && dist <= pushRange) {
+                const nx = -dx / dist;
+                const ny = -dy / dist;
+
+                p1.x += nx * pushDistance;
+                p1.y += ny * pushDistance;
+
+                console.log(`[${new Date().toISOString()}] Player ${p2.id} pushed player ${p1.id} by 50px`);
+            }
         }
     }
 }
+
 
 
     checkArenaBounds() {

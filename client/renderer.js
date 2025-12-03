@@ -4,7 +4,7 @@ class Renderer {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext("2d");
         this.arenaRadius = arenaRadius;
-        this.players = {}; // playerId => {x, y, targetX, targetY, alive, cooldowns}
+        this.players = {}; // playerId => {x, y, targetX, targetY, alive, cooldowns, firstUpdate}
         this.interpolationFactor = 0.1;
     }
 
@@ -12,15 +12,18 @@ class Renderer {
     updateState(state) {
         state.players.forEach(p => {
             if (!this.players[p.id]) {
+                // First time we see this player: snap to position instantly
                 this.players[p.id] = {
                     x: p.x,
                     y: p.y,
                     targetX: p.x,
                     targetY: p.y,
                     alive: p.alive,
-                    cooldowns: { ...p.abilitiesCooldowns }
+                    cooldowns: { ...p.abilitiesCooldowns },
+                    firstUpdate: true
                 };
             } else {
+                // Update target positions for interpolation
                 this.players[p.id].targetX = p.x;
                 this.players[p.id].targetY = p.y;
                 this.players[p.id].alive = p.alive;
@@ -52,9 +55,16 @@ class Renderer {
         ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
 
         Object.values(this.players).forEach(p => {
-            // Interpolate positions
-            p.x += (p.targetX - p.x) * this.interpolationFactor;
-            p.y += (p.targetY - p.y) * this.interpolationFactor;
+            // Snap first update instantly to target
+            if (p.firstUpdate) {
+                p.x = p.targetX;
+                p.y = p.targetY;
+                p.firstUpdate = false;
+            } else {
+                // Interpolate positions smoothly
+                p.x += (p.targetX - p.x) * this.interpolationFactor;
+                p.y += (p.targetY - p.y) * this.interpolationFactor;
+            }
 
             // Player circle
             ctx.beginPath();

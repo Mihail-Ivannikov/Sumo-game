@@ -15,10 +15,6 @@
 <h2>Sumo Arena Test</h2>
 <div id="controls">
   <button id="readyBtn">Ready</button>
-  <button id="pushBtn">Push</button>
-  <button id="sprintBtn">Sprint</button>
-  <button id="slideBtn">Slide</button>
-  <button id="invulBtn">Invul</button>
 </div>
 <div id="countdown"></div>
 <canvas id="arena" width="600" height="600"></canvas>
@@ -38,6 +34,7 @@ const network = {
 
 // Player movement
 const movement = { vx: 0, vy: 0 };
+let slideCooldown = false; // slide cooldown
 
 // ==== Join room automatically ====
 socket.emit("join-room");
@@ -57,24 +54,46 @@ socket.on("room-updated", data => {
     document.getElementById("countdown").innerText = `Ready: ${readyCount}/${data.players.length}`;
 });
 
-// Buttons using network module + alerts for testing
+// Ready button
 document.getElementById("readyBtn").onclick = () => { network.ready(); };
-document.getElementById("pushBtn").onclick = () => { network.ability("push");};
-document.getElementById("sprintBtn").onclick = () => { network.ability("sprint"); };
-document.getElementById("slideBtn").onclick = () => { network.ability("slide");};
-document.getElementById("invulBtn").onclick = () => { network.ability("invul"); };
 
-// Movement via arrows + WASD
+// ==== Keyboard input handling ==== 
 document.addEventListener("keydown", e => {
     let changed = false;
+
+    // Movement keys
     switch(e.key.toLowerCase()) {
         case "arrowup": case "w": movement.vy = -1; changed = true; break;
         case "arrowdown": case "s": movement.vy = 1; changed = true; break;
         case "arrowleft": case "a": movement.vx = -1; changed = true; break;
         case "arrowright": case "d": movement.vx = 1; changed = true; break;
     }
+
+    // Abilities via single keys
+    switch(e.key.toLowerCase()) {
+        case "q": network.ability("push"); break;
+        case "e": network.ability("sprint"); break;
+        case "r": network.ability("invul"); break;
+    }
+
+    // Slide: Shift + WASD
+    if (e.shiftKey && !slideCooldown) {
+        let dx = 0, dy = 0;
+        if (e.key.toLowerCase() === "w") dy = -20;
+        if (e.key.toLowerCase() === "s") dy = 20;
+        if (e.key.toLowerCase() === "a") dx = -20;
+        if (e.key.toLowerCase() === "d") dx = 20;
+
+        if (dx !== 0 || dy !== 0) {
+            network.sendInput({ slide: { dx, dy } });
+            slideCooldown = true;
+            setTimeout(() => slideCooldown = false, 200); // 200ms cooldown
+        }
+    }
+
     if(changed) network.sendInput(movement);
 });
+
 document.addEventListener("keyup", e => {
     let changed = false;
     switch(e.key.toLowerCase()) {

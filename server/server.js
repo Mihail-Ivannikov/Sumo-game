@@ -93,13 +93,22 @@ io.on("connection", (socket) => {
     // PLAYER INPUT (movement)
     // ----------------------
     socket.on("input", (data) => {
-        if (!player.alive) return;
-        player.inputX = data.vx;
-        player.inputY = data.vy;
+    if (!player.alive) return;
 
+    // Use vx/vy from client
+    player.inputX = data.vx || 0;
+    player.inputY = data.vy || 0;
 
-        console.log(`[${new Date().toISOString()}] Player ${player.id} input: vx=${player.vx}, vy=${player.vy}`);
-    });
+    // Trigger abilities if included
+    if (data.abilities) {
+        Object.keys(data.abilities).forEach(ability => {
+            if (data.abilities[ability]) player.useAbility(ability);
+        });
+    }
+
+    console.log(`[${new Date().toISOString()}] Player ${player.id} input: vx=${player.inputX}, vy=${player.inputY}`);
+});
+
 
     // ----------------------
     // PLAYER USES ABILITY
