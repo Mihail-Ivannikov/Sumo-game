@@ -1,13 +1,27 @@
-// server.js
+// server/server.js
 const express = require("express");
 const http = require("http");
+const path = require("path"); // IMPORT PATH MODULE
 const { Server } = require("socket.io");
 
 const RoomManager = require("./RoomManager");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+// 1. ENABLE STATIC FILE SERVING
+// This allows you to go to http://localhost:3000 and play the game
+// properly without needing a separate client server for testing.
+app.use(express.static(path.join(__dirname, "../client")));
+
+// 2. SOCKET SETUP
+// cors: "*" allows connections from GitHub Pages or other domains later.
+const io = new Server(server, { 
+    cors: { 
+        origin: "*", 
+        methods: ["GET", "POST"] 
+    } 
+});
 
 // Initialize RoomManager
 const rooms = new RoomManager(io);
@@ -18,7 +32,7 @@ const rooms = new RoomManager(io);
 io.on("connection", (socket) => {
     console.log(`[${new Date().toISOString()}] Player connected: socketId=${socket.id}`);
 
-    // Add player to a room (RoomManager returns actual Room instance)
+    // Add player to a room
     const { room, player } = rooms.addPlayer(socket);
 
     // Send room info to player
@@ -28,7 +42,6 @@ io.on("connection", (socket) => {
     });
 
     console.log(`[${new Date().toISOString()}] Player ${player.id} joined room ${room.id}`);
-    console.log(`[${new Date().toISOString()}] Room state: players=${room.players.map(p => p.id).join(", ")}`);
 
     // Broadcast updated room state to all in the room
     io.to(room.id).emit("room-updated", {
@@ -40,7 +53,7 @@ io.on("connection", (socket) => {
     // ----------------------
     socket.on("player-ready", () => {
         player.ready = true;
-        console.log(`[${new Date().toISOString()}] Player ${player.id} in room ${room.id} is READY`);
+        console.log(`[${new Date().toISOString()}] Player ${player.id} is READY`);
 
         io.to(room.id).emit("room-updated", {
             players: room.players.map(p => p.toJSON())
@@ -52,14 +65,12 @@ io.on("connection", (socket) => {
             room.readyInterval = setInterval(() => {
                 room.startReadyTimer--;
                 io.to(room.id).emit("ready-timer", room.startReadyTimer);
-                console.log(`[${new Date().toISOString()}] Room ${room.id} ready-timer=${room.startReadyTimer}`);
 
                 // Reset timer if someone becomes unready or disconnects
                 if (!room.players.every(p => p.ready)) {
                     clearInterval(room.readyInterval);
                     room.startReadyTimer = null;
                     room.readyInterval = null;
-                    console.log(`[${new Date().toISOString()}] Room ${room.id} ready-timer reset (someone unready/disconnected)`);
                     return;
                 }
 
@@ -68,63 +79,72 @@ io.on("connection", (socket) => {
                     clearInterval(room.readyInterval);
                     room.startReadyTimer = null;
                     room.readyInterval = null;
-
-                    console.log(`[${new Date().toISOString()}] Room ${room.id} partial ready timer expired, starting game`);
-                    room.startTimer = 3; // 3…2…1 countdown
+                    room.startTimer = 3;
                     room.startGame(io);
                 }
             }, 1000);
         }
 
-        // If all ready before 20s, start 3…2…1 countdown
+        // If all ready before 20s, start 3…2…1 countdown immediately
         if (room.allReady()) {
             if (room.readyInterval) {
                 clearInterval(room.readyInterval);
                 room.startReadyTimer = null;
                 room.readyInterval = null;
             }
-            console.log(`[${new Date().toISOString()}] All players ready in room ${room.id}, starting countdown`);
-            room.startTimer = 3; // 3…2…1 countdown
+            console.log(`[${new Date().toISOString()}] All players ready, starting game...`);
+            room.startTimer = 3; 
             room.startGame(io);
         }
     });
 
     // ----------------------
-    // PLAYER INPUT (movement)
+    // PLAYER INPUT (Movement)
     // ----------------------
     socket.on("input", (data) => {
-    if (!player.alive) return;
-
-    // Use vx/vy from client
-    player.inputX = data.vx || 0;
-    player.inputY = data.vy || 0;
-
-    // Trigger abilities if included
-    if (data.abilities) {
-        Object.keys(data.abilities).forEach(ability => {
-            if (data.abilities[ability]) player.useAbility(ability);
-        });
-    }
-
-    console.log(`[${new Date().toISOString()}] Player ${player.id} input: vx=${player.inputX}, vy=${player.inputY}`);
-});
-
-
-    // ----------------------
-    // PLAYER USES ABILITY
-    // ----------------------
-    socket.on("ability", (abilityName) => {
         if (!player.alive) return;
 
-        const used = player.useAbility(abilityName);
+        // Use vx/vy from client
+        player.inputX = data.vx || 0;
+        player.inputY = data.vy || 0;
+
+        // Trigger abilities if sent in input packet (legacy support)
+        if (data.abilities) {
+            Object.keys(data.abilities).forEach(ability => {
+                if (data.abilities[ability]) player.useAbility(ability);
+            });
+        }
+        
+        // Commented out to reduce console spam during development
+        // console.log(`Input: ${player.inputX}, ${player.inputY}`);
+    });
+
+    // ----------------------
+    // PLAYER ABILITY (Slide, Push, etc)
+    // ----------------------
+    socket.on("ability", (data) => {
+        if (!player.alive) return;
+
+        // HANDLE OBJECT PAYLOAD (Fix for Shift+WASD Slide)
+        // If 'data' is a string ("push"), use it.
+        // If 'data' is object ({name: "slide", dir: {x,y}}), extract name and params.
+        const abilityName = typeof data === 'string' ? data : data.name;
+        const params = typeof data === 'object' ? data : {};
+
+        // Pass the extra params (like direction) to useAbility
+        const used = player.useAbility(abilityName, params);
+        
         if (!used) {
-            console.log(`[${new Date().toISOString()}] Player ${player.id} tried to use ability ${abilityName} but it's on cooldown`);
+            // Ability on cooldown
             return;
         }
 
-        console.log(`[${new Date().toISOString()}] Player ${player.id} used ability: ${abilityName}`);
-        if (abilityName === "push") player.pushing = true;
+        console.log(`[${new Date().toISOString()}] Player ${player.id} used: ${abilityName}`);
+        if (params.dir) {
+            console.log(`   -> Direction: x:${params.dir.x}, y:${params.dir.y}`);
+        }
 
+        // Broadcast to others so they can see effects
         io.to(room.id).emit("ability-used", {
             playerId: player.id,
             ability: abilityName
@@ -136,7 +156,7 @@ io.on("connection", (socket) => {
     // ----------------------
     socket.on("disconnect", () => {
         const roomId = rooms.removePlayer(player.id);
-        console.log(`[${new Date().toISOString()}] Player ${player.id} disconnected from room ${roomId}`);
+        console.log(`[${new Date().toISOString()}] Player ${player.id} disconnected`);
 
         if (roomId) {
             const r = rooms.getRoom(roomId);
@@ -150,7 +170,6 @@ io.on("connection", (socket) => {
                     clearInterval(r.readyInterval);
                     r.startReadyTimer = null;
                     r.readyInterval = null;
-                    console.log(`[${new Date().toISOString()}] Room ${roomId} ready-timer reset due to disconnect`);
                 }
             }
         }
@@ -162,4 +181,5 @@ io.on("connection", (socket) => {
 // ----------------------
 server.listen(3000, () => {
     console.log(`[${new Date().toISOString()}] Server listening on port 3000`);
+    console.log(`   -> Open http://localhost:3000 in your browser to play`);
 });

@@ -5,148 +5,121 @@
 <title>Sumo Arena Test Client</title>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <style>
-  body { font-family: Arial, sans-serif; }
+  body { font-family: Arial, sans-serif; background: #333; color: white; text-align: center; }
   #controls { margin-bottom: 10px; }
-  #arena { width: 600px; height: 600px; border: 1px solid #000; background: #eee; }
+  #arena { 
+      background: #eee; 
+      border-radius: 50%; 
+      cursor: crosshair; 
+      box-shadow: 0 0 20px black;
+  }
+  #debug { 
+      position: fixed; 
+      top: 10px; 
+      left: 10px; 
+      background: rgba(0,0,0,0.8); 
+      color: #0f0; 
+      padding: 15px; 
+      font-family: monospace; 
+      font-size: 18px; 
+      border: 1px solid #0f0;
+      pointer-events: none; 
+      text-align: left;
+      min-width: 200px;
+  }
 </style>
 </head>
 <body>
 
 <h2>Sumo Arena Test</h2>
 <div id="controls">
-  <button id="readyBtn">Ready</button>
+  <button id="readyBtn" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">Ready</button>
 </div>
 <div id="countdown"></div>
-<canvas id="arena" width="600" height="600"></canvas>
 
-<script>
-// ==== Socket.io connection ====
-const socket = io("http://localhost:3000");
-let playerId;
-let roomId;
+<canvas id="arena" width="600" height="600" tabindex="0"></canvas>
+<div id="debug">Waiting for input...</div>
 
-// ==== Network module integration ====
-const network = {
-    sendInput: (input) => socket.emit("input", input),
-    ready: () => socket.emit("player-ready"),
-    ability: (name) => socket.emit("ability", name)
-};
+<!-- TYPE="MODULE" IS IMPORTANT HERE -->
+<script type="module">
+    import setupInput from './input.js';
 
-// Player movement
-const movement = { vx: 0, vy: 0 };
-let slideCooldown = false; // slide cooldown
+    // ==== 1. Setup & Connection ====
+    const socket = io("http://localhost:3000");
+    let playerId;
+    let roomId;
 
-// ==== Join room automatically ====
-socket.emit("join-room");
-socket.on("joined-room", (data) => {
-    playerId = data.playerId;
-    roomId = data.roomId;
-    console.log(`Joined room ${roomId} as ${playerId}`);
-});
+    // ==== 2. Initialize Input Module ====
+    // We pass the socket so the module can emit events
+    setupInput(socket);
 
-// Countdown display
-socket.on("countdown", num => document.getElementById("countdown").innerText = "Game starting in: " + num);
-socket.on("ready-timer", num => document.getElementById("countdown").innerText = "Ready timer: " + num);
+    // ==== 3. Network Logic ====
+    socket.emit("join-room");
+    
+    socket.on("joined-room", (data) => {
+        playerId = data.playerId;
+        roomId = data.roomId;
+        console.log(`Joined room ${roomId} as ${playerId}`);
+    });
 
-// Show ready players
-socket.on("room-updated", data => {
-    const readyCount = data.players.filter(p => p.ready).length;
-    document.getElementById("countdown").innerText = `Ready: ${readyCount}/${data.players.length}`;
-});
+    // UI Updates
+    socket.on("countdown", num => document.getElementById("countdown").innerText = "Game starting in: " + num);
+    socket.on("ready-timer", num => document.getElementById("countdown").innerText = "Ready timer: " + num);
+    socket.on("room-updated", data => {
+        const readyCount = data.players.filter(p => p.ready).length;
+        document.getElementById("countdown").innerText = `Ready: ${readyCount}/${data.players.length}`;
+    });
 
-// Ready button
-document.getElementById("readyBtn").onclick = () => { network.ready(); };
+    // ==== 4. Rendering Logic ====
+    const canvas = document.getElementById("arena");
+    const ctx = canvas.getContext("2d");
+    const arenaRadius = 250; 
+    let gameState = { players: [] };
 
-// ==== Keyboard input handling ==== 
-document.addEventListener("keydown", e => {
-    let changed = false;
+    socket.on("state-update", data => {
+        gameState = data;
+        drawArena();
+    });
 
-    // Movement keys
-    switch(e.key.toLowerCase()) {
-        case "arrowup": case "w": movement.vy = -1; changed = true; break;
-        case "arrowdown": case "s": movement.vy = 1; changed = true; break;
-        case "arrowleft": case "a": movement.vx = -1; changed = true; break;
-        case "arrowright": case "d": movement.vx = 1; changed = true; break;
-    }
+    function drawArena() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    // Abilities via single keys
-    switch(e.key.toLowerCase()) {
-        case "q": network.ability("push"); break;
-        case "e": network.ability("sprint"); break;
-        case "r": network.ability("invul"); break;
-    }
+        ctx.save();
+        ctx.translate(canvas.width/2, canvas.height/2);
 
-    // Slide: Shift + WASD
-    if (e.shiftKey && !slideCooldown) {
-        let dx = 0, dy = 0;
-        if (e.key.toLowerCase() === "w") dy = -20;
-        if (e.key.toLowerCase() === "s") dy = 20;
-        if (e.key.toLowerCase() === "a") dx = -20;
-        if (e.key.toLowerCase() === "d") dx = 20;
-
-        if (dx !== 0 || dy !== 0) {
-            network.sendInput({ slide: { dx, dy } });
-            slideCooldown = true;
-            setTimeout(() => slideCooldown = false, 200); // 200ms cooldown
-        }
-    }
-
-    if(changed) network.sendInput(movement);
-});
-
-document.addEventListener("keyup", e => {
-    let changed = false;
-    switch(e.key.toLowerCase()) {
-        case "arrowup": case "w":
-        case "arrowdown": case "s": movement.vy = 0; changed = true; break;
-        case "arrowleft": case "a":
-        case "arrowright": case "d": movement.vx = 0; changed = true; break;
-    }
-    if(changed) network.sendInput(movement);
-});
-
-// ==== Canvas setup ====
-const canvas = document.getElementById("arena");
-const ctx = canvas.getContext("2d");
-const arenaRadius = 250; 
-let gameState = { players: [] };
-
-// Receive state updates
-socket.on("state-update", data => {
-    gameState = data;
-    drawArena();
-});
-
-// Draw arena & players
-function drawArena() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    // Arena circle
-    ctx.beginPath();
-    ctx.arc(canvas.width/2, canvas.height/2, arenaRadius, 0, Math.PI*2);
-    ctx.fillStyle = "#ddd";
-    ctx.fill();
-    ctx.strokeStyle = "#000";
-    ctx.stroke();
-
-    // Players
-    gameState.players.forEach(p => {
-        const x = canvas.width/2 + p.x;
-        const y = canvas.height/2 + p.y;
-
+        // Draw Arena
         ctx.beginPath();
-        ctx.arc(x, y, 25, 0, Math.PI*2);
-        ctx.fillStyle = p.alive ? "green" : "red";
+        ctx.arc(0, 0, arenaRadius, 0, Math.PI*2);
+        ctx.fillStyle = "#ddd";
         ctx.fill();
-        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "#444";
         ctx.stroke();
 
-        ctx.fillStyle = "white";
-        ctx.font = "12px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(p.id.slice(0,2), x, y+4);
-    });
-}
+        // Draw Players
+        gameState.players.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 25, 0, Math.PI*2);
+            
+            // Color based on state
+            if (!p.alive) ctx.fillStyle = "#555"; // Dead
+            else if (p.isInvulnerable) ctx.fillStyle = "gold";
+            else if (p.isSliding) ctx.fillStyle = "cyan"; // Visual slide
+            else if (p.id === playerId) ctx.fillStyle = "blue"; // Self
+            else ctx.fillStyle = "red"; // Enemy
+
+            ctx.fill();
+            ctx.stroke();
+
+            // ID Text
+            ctx.fillStyle = "white";
+            ctx.font = "12px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(p.id.slice(0,2), p.x, p.y+4);
+        });
+
+        ctx.restore();
+    }
 </script>
 </body>
 </html>
