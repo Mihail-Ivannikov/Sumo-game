@@ -134,12 +134,25 @@
     const socket = io("http://localhost:3000");
     let playerId;
     
-    // -- LOAD IMAGES --
-    const imgPlayer = new Image();
-    imgPlayer.src = "./img/Player.png"; 
-    
-    const imgEnemy = new Image();
-    imgEnemy.src = "./img/Player_enemy.png"; 
+    // -- LOAD IMAGES (MY PLAYER) --
+    const imgPlayerIdle = new Image();
+    imgPlayerIdle.src = "./img/Player.png"; 
+
+    const imgPlayerRun1 = new Image();
+    imgPlayerRun1.src = "./img/Player_run_1.png";
+
+    const imgPlayerRun2 = new Image();
+    imgPlayerRun2.src = "./img/Player_run_2.png";
+
+    // -- LOAD IMAGES (ENEMY) --
+    const imgEnemyIdle = new Image();
+    imgEnemyIdle.src = "./img/Player_enemy.png"; 
+
+    const imgEnemyRun1 = new Image();
+    imgEnemyRun1.src = "./img/Player_enemy_run_1.png";
+
+    const imgEnemyRun2 = new Image();
+    imgEnemyRun2.src = "./img/Player_enemy_run_2.png";
 
     // UI Elements
     const readyBtn = document.getElementById("readyBtn");
@@ -150,7 +163,8 @@
     const canvas = document.getElementById("arena");
     const ctx = canvas.getContext("2d");
 
-    setupInput(socket);
+    // !!! IMPORTANT: We capture the returned input object to check keys !!!
+    const myInput = setupInput(socket);
 
     // ==== 2. UI LOGIC ====
     readyBtn.onclick = () => {
@@ -212,18 +226,16 @@
         }
     });
 
-    // --- NEW: Animation State System ---
-    // We store active animations here (e.g., pushes)
+    // --- Animation State System ---
     let animations = []; 
 
     socket.on("ability-used", (data) => {
-        // If the server says someone used "push", start the animation
         if (data.ability === "push") {
             animations.push({
                 playerId: data.playerId,
                 type: "push",
                 startTime: Date.now(),
-                duration: 200 // The animation lasts 200ms
+                duration: 200 
             });
         }
     });
@@ -262,6 +274,7 @@
             ctx.save();
             
             // 1. Calculate Rotation
+            // We use a threshold of 0.1 for physics/rotation calculations
             if (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1) {
                 playerAngles[p.id] = Math.atan2(p.vy, p.vx);
             }
@@ -272,28 +285,22 @@
             ctx.translate(p.x, p.y);
             ctx.rotate(angle - Math.PI / 2);
 
-            // --- NEW: Handle Push Animation (Lunge) ---
+            // --- Handle Push Animation (Lunge) ---
             const activeAnim = animations.find(a => a.playerId === p.id && a.type === "push");
             if (activeAnim) {
-                // Calculate progress (0.0 to 1.0)
                 const progress = (now - activeAnim.startTime) / activeAnim.duration;
-                
-                // Create a "Lunge" effect: Move sprite forward and back
-                // Math.sin(progress * PI) creates a curve: 0 -> 1 -> 0
+                // Lunge effect
                 const lungeDistance = 15; 
                 const offset = Math.sin(progress * Math.PI) * lungeDistance;
-                
-                // Apply the lunge to the drawing context (moving down because we rotated -90deg)
                 ctx.translate(0, offset); 
 
-                // Draw Shockwave (Semi-circle in front)
+                // Shockwave
                 ctx.beginPath();
-                ctx.arc(0, 40, 20 + (progress * 30), 0, Math.PI, false); // Arc grows
-                ctx.lineWidth = 5 - (progress * 5); // Lines get thinner
-                ctx.strokeStyle = `rgba(255, 255, 255, ${1 - progress})`; // Fade out
+                ctx.arc(0, 40, 20 + (progress * 30), 0, Math.PI, false);
+                ctx.lineWidth = 5 - (progress * 5);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${1 - progress})`; 
                 ctx.stroke();
             }
-            // ------------------------------------------
 
             // 3. Status Effects
             if (p.isInvulnerable) {
@@ -308,16 +315,48 @@
                 ctx.fill();
             }
 
-            // 4. Draw Image
+            // 4. Select Sprite (Animation Logic)
+            let sprite;
+            const isMe = (p.id === playerId);
+            let isMoving;
+
+            if (isMe) {
+                // For MY PLAYER: Check Input Directly for immediate stop
+                // If any key is pressed, we are moving. If not, we are idle.
+                isMoving = myInput.up || myInput.down || myInput.left || myInput.right;
+            } else {
+                // For ENEMY: We rely on Velocity
+                // We increase threshold to 0.5 so they snap to idle faster during friction
+                isMoving = Math.abs(p.vx) > 0.5 || Math.abs(p.vy) > 0.5;
+            }
+
+            // If "Slide" ability is active, strictly show Run animation (optional)
+            // or just rely on physics. Usually sliding implies movement.
+            if (p.isSliding) isMoving = true;
+
+            if (!isMoving) {
+                // Standing still
+                sprite = isMe ? imgPlayerIdle : imgEnemyIdle;
+            } else {
+                // Running: Switch between Run1 and Run2 every 150ms
+                const frame = Math.floor(now / 150) % 2; 
+
+                if (isMe) {
+                    sprite = (frame === 0) ? imgPlayerRun1 : imgPlayerRun2;
+                } else {
+                    sprite = (frame === 0) ? imgEnemyRun1 : imgEnemyRun2;
+                }
+            }
+
+            // 5. Draw Image
             if (!p.alive) ctx.globalAlpha = 0.5;
 
-            const img = (p.id === playerId) ? imgPlayer : imgEnemy;
             const size = 60; 
-            ctx.drawImage(img, -size/2, -size/2, size, size);
+            ctx.drawImage(sprite, -size/2, -size/2, size, size);
 
             ctx.restore(); 
 
-            // 5. Draw ID (Outside of rotation/lunge so it stays steady)
+            // 6. Draw ID
             ctx.fillStyle = "black";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
