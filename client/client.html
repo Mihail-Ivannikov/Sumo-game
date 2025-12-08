@@ -15,22 +15,55 @@
       overflow: hidden; 
   }
 
-  /* --- UI LAYOUT --- */
-  #game-container {
-      position: relative;
-      display: flex;
+  /* --- SCREENS --- */
+  .screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100vh;
+      display: none; /* Hidden by default */
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100vh;
+  }
+  
+  .active-screen {
+      display: flex;
   }
 
-  #controls { 
-      margin-bottom: 20px; 
-      z-index: 10;
+  /* --- LOGIN SCREEN --- */
+  #login-screen input {
+      padding: 15px;
+      font-size: 18px;
+      border-radius: 5px;
+      border: none;
+      margin-bottom: 20px;
+      text-align: center;
   }
 
-  /* Canvas styling */
+  /* --- LOBBY SCREEN --- */
+  #lobby-list {
+      background: #333;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      margin-bottom: 20px;
+      border: 2px solid #555;
+  }
+  .lobby-player {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      border-bottom: 1px solid #444;
+      font-size: 18px;
+  }
+  .status-ready { color: #4CAF50; font-weight: bold; }
+  .status-waiting { color: #aaa; }
+
+  /* --- GAME SCREEN --- */
+  #game-container {
+      position: relative;
+  }
+
   #arena { 
       background: #eee; 
       border-radius: 50%; 
@@ -39,10 +72,11 @@
       outline: none;
   }
 
-  /* Buttons */
+  /* --- GENERIC UI --- */
+  h1, h2 { margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: 2px; }
+
   button { 
-      margin-top: 20px;
-      padding: 15px 15px; 
+      padding: 15px 30px; 
       font-size: 20px; 
       font-weight: bold;
       cursor: pointer; 
@@ -56,9 +90,6 @@
   button:hover { background: #45a049; transform: scale(1.05); }
   button:active { transform: scale(0.95); }
   button:disabled { background: #555; cursor: not-allowed; transform: none; }
-
-  /* Status Text */
-  #statusText { margin-top: 15px; font-size: 18px; color: #ccc; height: 24px; }
 
   /* --- GAME OVER MODAL --- */
   #gameOverModal {
@@ -79,18 +110,9 @@
       padding: 50px;
       border-radius: 15px;
       border: 2px solid #555;
-      text-align: center;
-      box-shadow: 0 0 50px rgba(0,0,0,0.8);
-      animation: popIn 0.3s ease-out;
   }
-
-  @keyframes popIn {
-      from { transform: scale(0.8); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
-  }
-
-  .modal-title { color: #ff5555; font-size: 48px; margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 2px; }
-  .modal-winner { color: #fff; font-size: 24px; margin: 0 0 40px 0; }
+  .modal-title { color: #ff5555; font-size: 48px; }
+  .modal-winner { color: #fff; font-size: 24px; margin-bottom: 40px; }
   
   #restartBtn { background: #2196F3; }
   #restartBtn:hover { background: #0b7dda; }
@@ -100,28 +122,57 @@
       position: fixed; top: 10px; left: 10px; 
       background: rgba(0,0,0,0.8); color: lime; 
       padding: 10px; font-family: monospace; 
-      border: 1px solid lime; pointer-events: none;
       display: none; 
+  }
+
+  /* COUNTDOWN OVERLAY */
+  #countdown-overlay {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 100px;
+      font-weight: bold;
+      color: yellow;
+      text-shadow: 0 0 20px black;
+      pointer-events: none;
+      display: none;
+      z-index: 100;
   }
 </style>
 </head>
 <body>
 
-<div id="game-container">
-    <div id="controls">
-        <h2 style="margin: 0 0 10px 0;">Sumo Arena</h2>
-        <button id="readyBtn">I AM READY</button>
-        <div id="statusText">Waiting for connection...</div>
+<!-- === SCREEN 1: LOGIN === -->
+<div id="login-screen" class="screen active-screen">
+    <h1>Sumo Arena</h1>
+    <input type="text" id="usernameInput" placeholder="Enter Username" maxlength="10">
+    <button id="joinBtn">JOIN GAME</button>
+</div>
+
+<!-- === SCREEN 2: LOBBY === -->
+<div id="lobby-screen" class="screen">
+    <h2>Waiting Room</h2>
+    <div id="lobby-list">
+        <!-- Players injected here via JS -->
     </div>
+    <div id="lobbyStatus" style="margin-bottom: 20px; color: #ccc;">Waiting for players...</div>
+    <button id="readyBtn">I AM READY</button>
+</div>
 
-    <canvas id="arena" width="600" height="600" tabindex="0"></canvas>
+<!-- === SCREEN 3: GAME === -->
+<div id="game-screen" class="screen">
+    <div id="game-container">
+        <canvas id="arena" width="600" height="600" tabindex="0"></canvas>
+        <div id="countdown-overlay">3</div>
+    </div>
+</div>
 
-    <div id="gameOverModal">
-        <div class="modal-content">
-            <h1 class="modal-title">GAME ENDED</h1>
-            <h2 id="winnerText" class="modal-winner">Winner: Player 1</h2>
-            <button id="restartBtn">RESTART</button>
-        </div>
+<!-- GAME OVER MODAL -->
+<div id="gameOverModal">
+    <div class="modal-content">
+        <h1 class="modal-title">GAME ENDED</h1>
+        <h2 id="winnerText" class="modal-winner">Winner: Player 1</h2>
+        <button id="restartBtn">GO TO LOBBY</button>
     </div>
 </div>
 
@@ -133,56 +184,143 @@
     // ==== 1. Setup & Assets ====
     const socket = io("http://localhost:3000");
     let playerId;
+    let myUsername = "";
     
-    // -- LOAD IMAGES (MY PLAYER) --
-    const imgPlayerIdle = new Image();
-    imgPlayerIdle.src = "./img/Player.png"; 
-
-    const imgPlayerRun1 = new Image();
-    imgPlayerRun1.src = "./img/Player_run_1.png";
-
-    const imgPlayerRun2 = new Image();
-    imgPlayerRun2.src = "./img/Player_run_2.png";
-
-    // -- LOAD IMAGES (ENEMY) --
-    const imgEnemyIdle = new Image();
-    imgEnemyIdle.src = "./img/Player_enemy.png"; 
-
-    const imgEnemyRun1 = new Image();
-    imgEnemyRun1.src = "./img/Player_enemy_run_1.png";
-
-    const imgEnemyRun2 = new Image();
-    imgEnemyRun2.src = "./img/Player_enemy_run_2.png";
+    // -- LOAD IMAGES --
+    const imgPlayerIdle = new Image(); imgPlayerIdle.src = "./img/Player.png"; 
+    const imgPlayerRun1 = new Image(); imgPlayerRun1.src = "./img/Player_run_1.png";
+    const imgPlayerRun2 = new Image(); imgPlayerRun2.src = "./img/Player_run_2.png";
+    const imgEnemyIdle = new Image();  imgEnemyIdle.src = "./img/Player_enemy.png"; 
+    const imgEnemyRun1 = new Image();  imgEnemyRun1.src = "./img/Player_enemy_run_1.png";
+    const imgEnemyRun2 = new Image();  imgEnemyRun2.src = "./img/Player_enemy_run_2.png";
 
     // UI Elements
+    const loginScreen = document.getElementById("login-screen");
+    const lobbyScreen = document.getElementById("lobby-screen");
+    const gameScreen = document.getElementById("game-screen");
+    
+    const usernameInput = document.getElementById("usernameInput");
+    const joinBtn = document.getElementById("joinBtn");
+    
+    const lobbyList = document.getElementById("lobby-list");
+    const lobbyStatus = document.getElementById("lobbyStatus");
     const readyBtn = document.getElementById("readyBtn");
-    const statusText = document.getElementById("statusText");
+    
+    const canvas = document.getElementById("arena");
+    const ctx = canvas.getContext("2d");
+    const countdownOverlay = document.getElementById("countdown-overlay");
+    
     const modal = document.getElementById("gameOverModal");
     const winnerText = document.getElementById("winnerText");
     const restartBtn = document.getElementById("restartBtn");
-    const canvas = document.getElementById("arena");
-    const ctx = canvas.getContext("2d");
 
-    // !!! IMPORTANT: We capture the returned input object to check keys !!!
     const myInput = setupInput(socket);
 
-    // ==== 2. UI LOGIC ====
+    // ==== 2. SCREEN NAVIGATION ====
+    
+    function showScreen(screenName) {
+        loginScreen.classList.remove("active-screen");
+        lobbyScreen.classList.remove("active-screen");
+        gameScreen.classList.remove("active-screen");
+
+        if(screenName === "login") loginScreen.classList.add("active-screen");
+        if(screenName === "lobby") lobbyScreen.classList.add("active-screen");
+        if(screenName === "game") gameScreen.classList.add("active-screen");
+    }
+
+    // ==== 3. UI LOGIC ====
+
+    // A. LOGIN: Join Game
+    joinBtn.onclick = () => {
+        const name = usernameInput.value.trim() || "Player";
+        myUsername = name;
+        // Tell server our name. The server will add us to a room.
+        socket.emit("join-game", name); 
+        showScreen("lobby");
+    };
+
+    // B. LOBBY: Toggle Ready
     readyBtn.onclick = () => {
         socket.emit("player-ready");
         readyBtn.disabled = true;
-        readyBtn.innerText = "WAITING FOR OTHERS...";
+        readyBtn.innerText = "WAITING...";
         readyBtn.style.backgroundColor = "#555";
-        statusText.innerText = "You are ready.";
-        canvas.focus();
     };
+
+    // C. GAME OVER: Return to Lobby
+    restartBtn.onclick = () => {
+        modal.style.display = "none";
+        
+        // Reset local UI
+        readyBtn.disabled = false;
+        readyBtn.innerText = "I AM READY";
+        readyBtn.style.backgroundColor = "#4CAF50";
+        countdownOverlay.style.display = "none";
+
+        showScreen("lobby");
+    };
+
+    // ==== 4. NETWORK EVENTS ====
+
+    socket.on("joined-room", (data) => {
+        playerId = data.playerId;
+        console.log(`Joined room ${data.roomId}`);
+    });
+
+    // Update Lobby List
+    socket.on("room-updated", (data) => {
+        renderLobby(data.players);
+    });
+
+    function renderLobby(players) {
+        lobbyList.innerHTML = "";
+        let readyCount = 0;
+
+        players.forEach(p => {
+            if(p.ready) readyCount++;
+            
+            const div = document.createElement("div");
+            div.className = "lobby-player";
+            const nameSpan = document.createElement("span");
+            nameSpan.innerText = p.username || "Unknown";
+            if(p.id === playerId) nameSpan.style.color = "#4CAF50"; // Highlight self
+
+            const statusSpan = document.createElement("span");
+            statusSpan.innerText = p.ready ? "READY" : "WAITING";
+            statusSpan.className = p.ready ? "status-ready" : "status-waiting";
+
+            div.appendChild(nameSpan);
+            div.appendChild(statusSpan);
+            lobbyList.appendChild(div);
+        });
+
+        lobbyStatus.innerText = `${readyCount} / ${players.length} Players Ready`;
+    }
+
+    // COUNTDOWN (Triggers Game Screen)
+    socket.on("countdown", num => {
+        // Switch to game screen immediately when countdown starts
+        if(!gameScreen.classList.contains("active-screen")) {
+            showScreen("game");
+            canvas.focus();
+        }
+
+        countdownOverlay.style.display = "block";
+        countdownOverlay.innerText = num > 0 ? num : "FIGHT!";
+        
+        if (num <= 0) {
+            setTimeout(() => { countdownOverlay.style.display = "none"; }, 1000);
+        }
+    });
 
     socket.on("game-over", (data) => {
         if (data.winner) {
+            // Find winner name from gameState if possible, otherwise use ID
             if (data.winner === playerId) {
                 winnerText.innerText = "🏆 YOU WON! 🏆";
                 winnerText.style.color = "#4CAF50";
             } else {
-                winnerText.innerText = `Winner: Player ${data.winner.slice(0,4)}`;
+                winnerText.innerText = "You Lost!";
                 winnerText.style.color = "white";
             }
         } else {
@@ -190,73 +328,34 @@
             winnerText.style.color = "#aaa";
         }
         modal.style.display = "flex";
-        readyBtn.style.display = "none";
     });
 
-    restartBtn.onclick = () => {
-        modal.style.display = "none";
-        readyBtn.style.display = "inline-block";
-        readyBtn.disabled = false;
-        readyBtn.innerText = "I AM READY";
-        readyBtn.style.backgroundColor = "#4CAF50";
-        statusText.innerText = "Press Ready to start next round";
-    };
-
-    // ==== 3. Network Events ====
-    socket.emit("join-room");
-    
-    socket.on("joined-room", (data) => {
-        playerId = data.playerId;
-        statusText.innerText = "Connected. Press Ready.";
-    });
-
-    socket.on("countdown", num => {
-        statusText.innerText = "Game starting in: " + num;
-        modal.style.display = "none"; 
-        readyBtn.style.display = "inline-block";
-    });
-
-    socket.on("ready-timer", num => statusText.innerText = "Waiting for stragglers: " + num);
-    
-    socket.on("room-updated", data => {
-        const readyCount = data.players.filter(p => p.ready).length;
-        const total = data.players.length;
-        if (!statusText.innerText.includes("starting")) {
-            statusText.innerText = `Lobby: ${readyCount}/${total} Ready`;
-        }
-    });
-
-    // --- Animation State System ---
+    // ==== 5. RENDERING LOGIC ====
     let animations = []; 
-
     socket.on("ability-used", (data) => {
         if (data.ability === "push") {
-            animations.push({
-                playerId: data.playerId,
-                type: "push",
-                startTime: Date.now(),
-                duration: 200 
-            });
+            animations.push({ playerId: data.playerId, type: "push", startTime: Date.now(), duration: 200 });
         }
     });
 
-    // ==== 4. Rendering Logic ====
     const arenaRadius = 250; 
     let gameState = { players: [] };
     const playerAngles = {};
 
     socket.on("state-update", data => {
         gameState = data;
-        drawArena();
+        // Only draw if we are actually on the game screen
+        if(gameScreen.classList.contains("active-screen")) {
+            drawArena();
+        }
     });
 
     function drawArena() {
         ctx.clearRect(0,0,canvas.width,canvas.height);
-
         ctx.save();
         ctx.translate(canvas.width/2, canvas.height/2);
 
-        // Draw Arena Floor
+        // Arena Floor
         ctx.beginPath();
         ctx.arc(0, 0, arenaRadius, 0, Math.PI*2);
         ctx.fillStyle = "#ddd";
@@ -265,36 +364,32 @@
         ctx.strokeStyle = "#444";
         ctx.stroke();
 
-        // Filter out finished animations
         const now = Date.now();
         animations = animations.filter(anim => now - anim.startTime < anim.duration);
 
-        // Draw Players
         gameState.players.forEach(p => {
+            if(!p.alive && p.id !== playerId) return; // Optional: Don't draw dead enemies? Or keep them as ghosts.
+
             ctx.save();
             
-            // 1. Calculate Rotation
-            // We use a threshold of 0.1 for physics/rotation calculations
+            // Rotation
             if (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1) {
                 playerAngles[p.id] = Math.atan2(p.vy, p.vx);
             }
             let angle = playerAngles[p.id];
             if (angle === undefined) angle = Math.PI / 2;
 
-            // 2. Position the context
             ctx.translate(p.x, p.y);
             ctx.rotate(angle - Math.PI / 2);
 
-            // --- Handle Push Animation (Lunge) ---
+            // Push Animation
             const activeAnim = animations.find(a => a.playerId === p.id && a.type === "push");
             if (activeAnim) {
                 const progress = (now - activeAnim.startTime) / activeAnim.duration;
-                // Lunge effect
                 const lungeDistance = 15; 
                 const offset = Math.sin(progress * Math.PI) * lungeDistance;
                 ctx.translate(0, offset); 
-
-                // Shockwave
+                
                 ctx.beginPath();
                 ctx.arc(0, 40, 20 + (progress * 30), 0, Math.PI, false);
                 ctx.lineWidth = 5 - (progress * 5);
@@ -302,65 +397,44 @@
                 ctx.stroke();
             }
 
-            // 3. Status Effects
+            // Status Effects
             if (p.isInvulnerable) {
-                ctx.beginPath();
-                ctx.arc(0, 0, 35, 0, Math.PI*2);
-                ctx.fillStyle = "rgba(255, 215, 0, 0.5)"; 
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI*2);
+                ctx.fillStyle = "rgba(255, 215, 0, 0.5)"; ctx.fill();
             } else if (p.isSliding) {
-                ctx.beginPath();
-                ctx.arc(0, 0, 35, 0, Math.PI*2);
-                ctx.fillStyle = "rgba(0, 255, 255, 0.5)"; 
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI*2);
+                ctx.fillStyle = "rgba(0, 255, 255, 0.5)"; ctx.fill();
             }
 
-            // 4. Select Sprite (Animation Logic)
+            // Sprite Selection
             let sprite;
             const isMe = (p.id === playerId);
             let isMoving;
 
-            if (isMe) {
-                // For MY PLAYER: Check Input Directly for immediate stop
-                // If any key is pressed, we are moving. If not, we are idle.
-                isMoving = myInput.up || myInput.down || myInput.left || myInput.right;
-            } else {
-                // For ENEMY: We rely on Velocity
-                // We increase threshold to 0.5 so they snap to idle faster during friction
-                isMoving = Math.abs(p.vx) > 0.5 || Math.abs(p.vy) > 0.5;
-            }
-
-            // If "Slide" ability is active, strictly show Run animation (optional)
-            // or just rely on physics. Usually sliding implies movement.
+            if (isMe) isMoving = myInput.up || myInput.down || myInput.left || myInput.right;
+            else isMoving = Math.abs(p.vx) > 0.5 || Math.abs(p.vy) > 0.5;
+            
             if (p.isSliding) isMoving = true;
 
             if (!isMoving) {
-                // Standing still
                 sprite = isMe ? imgPlayerIdle : imgEnemyIdle;
             } else {
-                // Running: Switch between Run1 and Run2 every 150ms
                 const frame = Math.floor(now / 150) % 2; 
-
-                if (isMe) {
-                    sprite = (frame === 0) ? imgPlayerRun1 : imgPlayerRun2;
-                } else {
-                    sprite = (frame === 0) ? imgEnemyRun1 : imgEnemyRun2;
-                }
+                if (isMe) sprite = (frame === 0) ? imgPlayerRun1 : imgPlayerRun2;
+                else sprite = (frame === 0) ? imgEnemyRun1 : imgEnemyRun2;
             }
 
-            // 5. Draw Image
             if (!p.alive) ctx.globalAlpha = 0.5;
-
             const size = 60; 
             ctx.drawImage(sprite, -size/2, -size/2, size, size);
 
             ctx.restore(); 
 
-            // 6. Draw ID
+            // Username Label
             ctx.fillStyle = "black";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
-            ctx.fillText(p.id.slice(0,4), p.x, p.y + 40);
+            ctx.fillText(p.username || "Player", p.x, p.y + 40);
         });
 
         ctx.restore();

@@ -4,6 +4,7 @@ const { v4: uuid } = require("uuid");
 class Player {
   constructor(id = uuid()) {
     this.id = id;
+    this.username = "Unknown"; // NEW: Store username
 
     // Position
     this.x = 0;
@@ -39,7 +40,6 @@ class Player {
     this.alive = true;
   }
 
-  // --- NEW METHOD: Reset state for a new round ---
   reset() {
     this.alive = true;
     this.vx = 0;
@@ -51,7 +51,6 @@ class Player {
     this.inputX = 0;
     this.inputY = 0;
 
-    // Reset cooldowns so everyone starts fresh
     const now = Date.now();
     this.abilitiesCooldowns = {
       push: now,
@@ -60,7 +59,6 @@ class Player {
       invul: now,
     };
     
-    // Clear any active timeouts
     if (this.invulTimeout) {
         clearTimeout(this.invulTimeout);
         this.invulTimeout = null;
@@ -109,7 +107,7 @@ class Player {
           dirY = 0;
         }
 
-        const slideSpeed = 25; // Adjusted based on your preference
+        const slideSpeed = 25; 
         if (dirX !== 0 || dirY !== 0) {
             this.vx = dirX * slideSpeed;
             this.vy = dirY * slideSpeed;
@@ -165,6 +163,7 @@ class Player {
   toJSON() {
     return {
       id: this.id,
+      username: this.username, // NEW
       x: this.x,
       y: this.y,
       vx: this.vx,
