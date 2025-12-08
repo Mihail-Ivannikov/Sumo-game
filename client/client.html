@@ -136,10 +136,10 @@
     
     // -- LOAD IMAGES --
     const imgPlayer = new Image();
-    imgPlayer.src = "./img/Player.png"; // Blue
+    imgPlayer.src = "./img/Player.png"; 
     
     const imgEnemy = new Image();
-    imgEnemy.src = "./img/Player_enemy.png"; // Red
+    imgEnemy.src = "./img/Player_enemy.png"; 
 
     // UI Elements
     const readyBtn = document.getElementById("readyBtn");
@@ -212,11 +212,25 @@
         }
     });
 
+    // --- NEW: Animation State System ---
+    // We store active animations here (e.g., pushes)
+    let animations = []; 
+
+    socket.on("ability-used", (data) => {
+        // If the server says someone used "push", start the animation
+        if (data.ability === "push") {
+            animations.push({
+                playerId: data.playerId,
+                type: "push",
+                startTime: Date.now(),
+                duration: 200 // The animation lasts 200ms
+            });
+        }
+    });
+
     // ==== 4. Rendering Logic ====
     const arenaRadius = 250; 
     let gameState = { players: [] };
-    
-    // !!! NEW: Store the last known rotation angle for every player !!!
     const playerAngles = {};
 
     socket.on("state-update", data => {
@@ -239,25 +253,47 @@
         ctx.strokeStyle = "#444";
         ctx.stroke();
 
+        // Filter out finished animations
+        const now = Date.now();
+        animations = animations.filter(anim => now - anim.startTime < anim.duration);
+
         // Draw Players
         gameState.players.forEach(p => {
             ctx.save();
             
-            // 1. Position
-            ctx.translate(p.x, p.y);
-
-            // 2. Calculate Rotation (with Memory)
-            // If moving, calculate new angle and store it
+            // 1. Calculate Rotation
             if (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1) {
                 playerAngles[p.id] = Math.atan2(p.vy, p.vx);
             }
-
-            // Retrieve saved angle (default to facing DOWN/PI/2 if unknown)
             let angle = playerAngles[p.id];
             if (angle === undefined) angle = Math.PI / 2;
 
-            // Apply rotation (Subtract PI/2 because image faces Down)
+            // 2. Position the context
+            ctx.translate(p.x, p.y);
             ctx.rotate(angle - Math.PI / 2);
+
+            // --- NEW: Handle Push Animation (Lunge) ---
+            const activeAnim = animations.find(a => a.playerId === p.id && a.type === "push");
+            if (activeAnim) {
+                // Calculate progress (0.0 to 1.0)
+                const progress = (now - activeAnim.startTime) / activeAnim.duration;
+                
+                // Create a "Lunge" effect: Move sprite forward and back
+                // Math.sin(progress * PI) creates a curve: 0 -> 1 -> 0
+                const lungeDistance = 15; 
+                const offset = Math.sin(progress * Math.PI) * lungeDistance;
+                
+                // Apply the lunge to the drawing context (moving down because we rotated -90deg)
+                ctx.translate(0, offset); 
+
+                // Draw Shockwave (Semi-circle in front)
+                ctx.beginPath();
+                ctx.arc(0, 40, 20 + (progress * 30), 0, Math.PI, false); // Arc grows
+                ctx.lineWidth = 5 - (progress * 5); // Lines get thinner
+                ctx.strokeStyle = `rgba(255, 255, 255, ${1 - progress})`; // Fade out
+                ctx.stroke();
+            }
+            // ------------------------------------------
 
             // 3. Status Effects
             if (p.isInvulnerable) {
@@ -281,7 +317,7 @@
 
             ctx.restore(); 
 
-            // 5. Draw ID
+            // 5. Draw ID (Outside of rotation/lunge so it stays steady)
             ctx.fillStyle = "black";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
