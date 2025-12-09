@@ -1,8 +1,16 @@
 import setupInput from './input.js';
 import GameRenderer from './renderer.js';
 
-const socket = io("http://localhost:3000");
-let playerId;
+
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+const serverUrl = isLocal 
+    ? "http://localhost:3000" 
+    : "https://hidden-cecilia-dispatch-7f71d564.koyeb.app";
+
+const socket = io(serverUrl);
+
+    let playerId;
 let isGameActive = false;
 
 const myInput = setupInput(socket);
