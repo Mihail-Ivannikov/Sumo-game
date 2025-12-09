@@ -4,7 +4,7 @@ const { v4: uuid } = require("uuid");
 class Player {
   constructor(id = uuid()) {
     this.id = id;
-    this.username = "Unknown"; // NEW: Store username
+    this.username = "Unknown"; 
 
     // Position
     this.x = 0;
@@ -24,13 +24,12 @@ class Player {
     this.isSliding = false;
     this.pushing = false;
 
-    // Ability cooldowns
-    const now = Date.now();
+    // Ability cooldowns (0 means ready)
     this.abilitiesCooldowns = {
-      push: now,
-      sprint: now,
-      slide: now,
-      invul: now,
+      push: 0,
+      sprint: 0,
+      slide: 0,
+      invul: 0,
     };
 
     this.invulTimeout = null;
@@ -40,6 +39,7 @@ class Player {
     this.alive = true;
   }
 
+  // Reset state for a new round
   reset() {
     this.alive = true;
     this.vx = 0;
@@ -51,14 +51,15 @@ class Player {
     this.inputX = 0;
     this.inputY = 0;
 
-    const now = Date.now();
+    // Reset cooldowns to 0 so everyone starts fresh
     this.abilitiesCooldowns = {
-      push: now,
-      sprint: now,
-      slide: now,
-      invul: now,
+      push: 0,
+      sprint: 0,
+      slide: 0,
+      invul: 0,
     };
     
+    // Clear any active timeouts
     if (this.invulTimeout) {
         clearTimeout(this.invulTimeout);
         this.invulTimeout = null;
@@ -68,23 +69,22 @@ class Player {
   useAbility(abilityName, params = {}) {
     if (!this.canUseAbility(abilityName)) return false;
 
-    const now = Date.now();
-
+    // Set cooldowns to raw duration integers (in ms)
     switch (abilityName) {
       case "push":
-        this.abilitiesCooldowns.push = now + 20000;
+        this.abilitiesCooldowns.push = 3000; // 3 seconds
         this.pushing = true;
         setTimeout(() => { this.pushing = false; }, 100);
         break;
 
       case "sprint":
-        this.abilitiesCooldowns.sprint = now + 20000;
+        this.abilitiesCooldowns.sprint = 10000; // 10 seconds
         this.isSprinting = true;
-        setTimeout(() => { this.isSprinting = false; }, 5000);
+        setTimeout(() => { this.isSprinting = false; }, 5000); // Sprint lasts 5s
         break;
 
       case "slide":
-        this.abilitiesCooldowns.slide = now + 5000;
+        this.abilitiesCooldowns.slide = 3000; // 3 seconds
         this.isSliding = true;
 
         let dirX = 0;
@@ -117,7 +117,7 @@ class Player {
         break;
 
       case "invul":
-        this.abilitiesCooldowns.invul = now + 40000;
+        this.abilitiesCooldowns.invul = 20000; // 20 seconds
         if (this.invulTimeout) clearTimeout(this.invulTimeout);
         this.isInvulnerable = true;
         this.invulTimeout = setTimeout(() => {
@@ -157,13 +157,14 @@ class Player {
   }
 
   canUseAbility(abilityName) {
-    return Date.now() >= this.abilitiesCooldowns[abilityName];
+    // Check if cooldown timer is 0 or less
+    return this.abilitiesCooldowns[abilityName] <= 0;
   }
 
   toJSON() {
     return {
       id: this.id,
-      username: this.username, // NEW
+      username: this.username,
       x: this.x,
       y: this.y,
       vx: this.vx,
