@@ -233,8 +233,7 @@
     // A. LOGIN: Join Game
     joinBtn.onclick = () => {
         const name = usernameInput.value.trim() || "Player";
-        myUsername = name;
-        // Tell server our name. The server will add us to a room.
+        // This triggers the server logic we just wrote above
         socket.emit("join-game", name); 
         showScreen("lobby");
     };
@@ -276,6 +275,23 @@
         lobbyList.innerHTML = "";
         let readyCount = 0;
 
+        // --- KEY FIX: SYNC BUTTON STATE ---
+        const me = players.find(p => p.id === playerId);
+        if (me) {
+            if (!me.ready) {
+                // If server says I am NOT ready, ensure button is enabled
+                readyBtn.disabled = false;
+                readyBtn.innerText = "I AM READY";
+                readyBtn.style.backgroundColor = "#4CAF50";
+            } else {
+                // If server says I AM ready, keep disabled
+                readyBtn.disabled = true;
+                readyBtn.innerText = "WAITING...";
+                readyBtn.style.backgroundColor = "#555";
+            }
+        }
+        // ----------------------------------
+
         players.forEach(p => {
             if(p.ready) readyCount++;
             
@@ -299,6 +315,12 @@
 
     // COUNTDOWN (Triggers Game Screen)
     socket.on("countdown", num => {
+        // If countdown stops (num is -1 or null), stay in lobby but hide overlay
+        if (num === null || num < 0) {
+            countdownOverlay.style.display = "none";
+            return;
+        }
+
         // Switch to game screen immediately when countdown starts
         if(!gameScreen.classList.contains("active-screen")) {
             showScreen("game");

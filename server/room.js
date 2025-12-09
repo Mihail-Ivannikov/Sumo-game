@@ -15,6 +15,8 @@ class Room {
     this.io = null;
   }
 
+  // ... [addPlayer and removePlayer code remains the same] ...
+
   addPlayer(playerId) {
     const player = new Player(playerId);
     player.x = 0;
@@ -28,13 +30,18 @@ class Room {
     if (this.readyCountdown) {
       clearInterval(this.readyCountdown);
       this.readyCountdown = null;
+      this.broadcast("countdown", -1);
     }
   }
 
+  // --- UPDATED METHOD ---
   allReady() {
-    return this.players.length > 0 && this.players.every((p) => p.ready);
+    // Game can only start if we have at least 2 players AND everyone is ready
+    return this.players.length >= 2 && this.players.every((p) => p.ready);
   }
 
+  // ... [Rest of the file remains the same: spawnPlayers, startGame, etc.] ...
+  
   spawnPlayers() {
     const count = this.players.length;
     const playerRadius = 25;
@@ -54,21 +61,14 @@ class Room {
     this.gameStarted = true;
     this.io = io;
 
-    // Reset positions
     this.spawnPlayers();
-
-    // 1. Send initial Countdown (e.g. "3")
-    // Client listens to "countdown" to switch from Lobby to Game Screen
     this.broadcast("countdown", this.startTimer);
 
-    // 2. Start the 1-second interval
     let countdownInterval = setInterval(() => {
       this.startTimer--;
-      this.broadcast("countdown", this.startTimer); // Sends 2, 1, 0
-
+      this.broadcast("countdown", this.startTimer);
       if (this.startTimer <= 0) {
         clearInterval(countdownInterval);
-        // Start the actual physics loop
         this.runGameLoop(io);
       }
     }, 1000);
@@ -77,7 +77,6 @@ class Room {
   }
 
   runGameLoop(io) {
-    // broadcast game-start just in case, though countdown 0 implies it
     this.broadcast("game-start", {
       players: this.players.map((p) => p.toJSON()),
     });
@@ -136,60 +135,60 @@ class Room {
   }
 
   handleCollisions() {
-      // (Keep existing collision logic from previous message)
-      // Copy the content of handleCollisions from the previous code block here
-      // It is large, but logic is identical.
-      for (let i = 0; i < this.players.length; i++) {
-        const p1 = this.players[i];
-        if (!p1.alive) continue;
-  
-        for (let j = i + 1; j < this.players.length; j++) {
-          const p2 = this.players[j];
-          if (!p2.alive) continue;
-  
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1; 
-  
-          const minDist = 50;
-          if (dist < minDist) {
-            const overlap = minDist - dist;
-            const nx = dx / dist;
-            const ny = dy / dist;
-  
-            if (!p1.isInvulnerable && !p2.isInvulnerable) {
-              const p1Speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
-              const p2Speed = Math.sqrt(p2.vx * p2.vx + p2.vy * p2.vy);
-              const total = p1Speed + p2Speed || 1;
-  
-              const p1Push = p2Speed / total;
-              const p2Push = p1Speed / total;
-  
-              p1.x -= nx * overlap * p1Push;
-              p1.y -= ny * overlap * p1Push;
-  
-              p2.x += nx * overlap * p2Push;
-              p2.y += ny * overlap * p2Push;
-            }
-          }
-          const pushRange = 100;
-          const pushDistance = 50;
-          if (p1.pushing && dist <= pushRange && !p2.isInvulnerable && !p1.isInvulnerable) {
-            const nx = dx / dist;
-            const ny = dy / dist;
-            p2.x += nx * pushDistance;
-            p2.y += ny * pushDistance;
-            p1.pushing = false; 
-          }
-          if (p2.pushing && dist <= pushRange && !p1.isInvulnerable && !p2.isInvulnerable) {
-            const nx = -dx / dist;
-            const ny = -dy / dist;
-            p1.x += nx * pushDistance;
-            p1.y += ny * pushDistance;
-            p2.pushing = false; 
+    for (let i = 0; i < this.players.length; i++) {
+      const p1 = this.players[i];
+      if (!p1.alive) continue;
+
+      for (let j = i + 1; j < this.players.length; j++) {
+        const p2 = this.players[j];
+        if (!p2.alive) continue;
+
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1; 
+
+        const minDist = 50;
+        if (dist < minDist) {
+          const overlap = minDist - dist;
+          const nx = dx / dist;
+          const ny = dy / dist;
+
+          if (!p1.isInvulnerable && !p2.isInvulnerable) {
+            const p1Speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
+            const p2Speed = Math.sqrt(p2.vx * p2.vx + p2.vy * p2.vy);
+            const total = p1Speed + p2Speed || 1;
+
+            const p1Push = p2Speed / total;
+            const p2Push = p1Speed / total;
+
+            p1.x -= nx * overlap * p1Push;
+            p1.y -= ny * overlap * p1Push;
+
+            p2.x += nx * overlap * p2Push;
+            p2.y += ny * overlap * p2Push;
           }
         }
+        
+        const pushRange = 100;
+        const pushDistance = 50;
+
+        if (p1.pushing && dist <= pushRange && !p2.isInvulnerable && !p1.isInvulnerable) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          p2.x += nx * pushDistance;
+          p2.y += ny * pushDistance;
+          p1.pushing = false; 
+        }
+
+        if (p2.pushing && dist <= pushRange && !p1.isInvulnerable && !p2.isInvulnerable) {
+          const nx = -dx / dist;
+          const ny = -dy / dist;
+          p1.x += nx * pushDistance;
+          p1.y += ny * pushDistance;
+          p2.pushing = false; 
+        }
       }
+    }
   }
 
   checkArenaBounds() {
@@ -224,11 +223,9 @@ class Room {
       
       clearInterval(this.gameLoopInterval);
       this.gameStarted = false;
-      this.startTimer = 3; // Reset for next time
+      this.startTimer = 3; 
 
-      // Mark everyone unready so they go back to lobby logic
       this.players.forEach(p => p.ready = false);
-      
       this.broadcast("room-updated", {
          players: this.players.map(p => p.toJSON())
       });
