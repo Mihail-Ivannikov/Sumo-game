@@ -1,0 +1,105 @@
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: #222; 
+    color: white; 
+    text-align: center; 
+    margin: 0; 
+    overflow: hidden; 
+}
+
+/* Screens */
+.screen {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100vh;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+}
+.active-screen { display: flex; }
+
+/* Login */
+#login-screen input {
+    padding: 15px; font-size: 18px; border-radius: 5px; border: none; margin-bottom: 20px; text-align: center;
+}
+
+/* Lobby */
+#lobby-list {
+    background: #333; padding: 20px; border-radius: 10px; width: 300px; margin-bottom: 20px; border: 2px solid #555;
+}
+.lobby-player {
+    display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #444; font-size: 18px;
+}
+.status-ready { color: #4CAF50; font-weight: bold; }
+.status-waiting { color: #aaa; }
+
+/* Game Layout */
+#game-layout {
+    display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 30px; 
+}
+#game-container { position: relative; }
+#arena { 
+    background: #eee; border-radius: 50%; cursor: crosshair; 
+    box-shadow: 0 0 30px rgba(0,0,0,0.8); outline: none;
+}
+
+/* Ability Bar */
+#ability-bar { display: flex; flex-direction: column; gap: 20px; }
+.ability-slot {
+    width: 80px; height: 80px; background-color: #222; border: 3px solid #555;
+    border-radius: 10px; position: relative; overflow: hidden; 
+    box-shadow: 0 4px 8px rgba(0,0,0,0.6); transition: all 0.2s;
+}
+.ability-slot.ready {
+    border-color: #00FF00; box-shadow: 0 0 15px rgba(0, 255, 0, 0.4); transform: scale(1.05);
+}
+.ability-icon {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 32px;
+}
+#slot-push .ability-icon { background: #E91E63; }   
+#slot-sprint .ability-icon { background: #FF9800; } 
+#slot-slide .ability-icon { background: #03A9F4; }  
+#slot-invul .ability-icon { background: #FFD700; color: black; } 
+
+.cooldown-overlay {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+    background-color: rgba(0, 0, 0, 0.75); z-index: 5;
+}
+
+.key-marker {
+    position: absolute; top: 5px; left: 8px; font-weight: 900; color: white; font-size: 16px;
+    z-index: 10; text-shadow: 2px 2px 0 #000;
+}
+.ability-name {
+    position: absolute; bottom: 5px; width: 100%; text-align: center; font-size: 12px; font-weight: bold;
+    color: white; z-index: 10; text-transform: uppercase; text-shadow: 2px 2px 0 #000;
+}
+
+/* Components */
+h1, h2 { margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: 2px; }
+button { 
+    padding: 15px 30px; font-size: 20px; font-weight: bold; cursor: pointer; 
+    background: #4CAF50; color: white; border: none; border-radius: 5px; margin: 5px;
+    transition: transform 0.1s;
+}
+button:hover { background: #45a049; transform: scale(1.05); }
+button:active { transform: scale(0.95); }
+button:disabled { background: #555; cursor: not-allowed; transform: none; }
+#exitBtn { background: #f44336; }
+#restartBtn { background: #2196F3; }
+
+/* Modal & Overlay */
+#gameOverModal {
+    display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.85); z-index: 1000;
+    flex-direction: column; justify-content: center; align-items: center;
+}
+.modal-content { background: #2a2a2a; padding: 50px; border-radius: 15px; border: 2px solid #555; }
+.modal-title { color: #ff5555; font-size: 48px; }
+.modal-winner { color: #fff; font-size: 24px; margin-bottom: 40px; }
+
+#countdown-overlay {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 100px; font-weight: bold; color: yellow; display: none; z-index: 100;
+    pointer-events: none; text-shadow: 0 0 20px black;
+}
+#debug { 
+    position: fixed; top: 10px; left: 10px; 
+    background: rgba(0,0,0,0.8); color: lime; padding: 10px; font-family: monospace; display: none; 
+}

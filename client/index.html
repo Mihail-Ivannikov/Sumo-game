@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sumo Arena</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+    <!-- SCREEN 1: LOGIN -->
+    <div id="login-screen" class="screen active-screen">
+        <h1>Sumo Arena</h1>
+        <input type="text" id="usernameInput" placeholder="Enter Username" maxlength="10">
+        <button id="joinBtn">JOIN GAME</button>
+    </div>
+
+    <!-- SCREEN 2: LOBBY -->
+    <div id="lobby-screen" class="screen">
+        <h2>Waiting Room</h2>
+        <div id="lobby-list"></div>
+        <div id="lobbyStatus" style="margin-bottom: 20px; color: #ccc;">Waiting for players...</div>
+        <div>
+            <button id="readyBtn">I AM READY</button>
+            <button id="exitBtn">EXIT</button>
+        </div>
+    </div>
+
+    <!-- SCREEN 3: GAME -->
+    <div id="game-screen" class="screen">
+        <div id="game-layout">
+            <div id="game-container">
+                <canvas id="arena" width="600" height="600" tabindex="0"></canvas>
+                <div id="countdown-overlay">3</div>
+            </div>
+
+            <div id="ability-bar">
+                <div id="slot-push" class="ability-slot ready">
+                    <div class="key-marker">Q</div>
+                    <div class="ability-icon">👊</div>
+                    <div class="ability-name">PUSH</div>
+                    <div class="cooldown-overlay" id="cd-push"></div>
+                </div>
+                <div id="slot-sprint" class="ability-slot ready">
+                    <div class="key-marker">E</div>
+                    <div class="ability-icon">⚡</div>
+                    <div class="ability-name">SPRINT</div>
+                    <div class="cooldown-overlay" id="cd-sprint"></div>
+                </div>
+                <div id="slot-slide" class="ability-slot ready">
+                    <div class="key-marker">SHIFT</div>
+                    <div class="ability-icon">💨</div>
+                    <div class="ability-name">SLIDE</div>
+                    <div class="cooldown-overlay" id="cd-slide"></div>
+                </div>
+                <div id="slot-invul" class="ability-slot ready">
+                    <div class="key-marker">R</div>
+                    <div class="ability-icon">🛡️</div>
+                    <div class="ability-name">INVUL</div>
+                    <div class="cooldown-overlay" id="cd-invul"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div id="gameOverModal">
+        <div class="modal-content">
+            <h1 class="modal-title">GAME ENDED</h1>
+            <h2 id="winnerText" class="modal-winner">Winner: Player 1</h2>
+            <button id="restartBtn">GO TO LOBBY</button>
+        </div>
+    </div>
+
+    <div id="debug"></div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
