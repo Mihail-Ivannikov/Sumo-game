@@ -1,4 +1,4 @@
-# Sumo Arena Multiplayer
+# Sumo Arena Multiplayer 
 
 ## Sumo Arena Multiplayer – браузерна багатокористувацька арена сумо.
 
